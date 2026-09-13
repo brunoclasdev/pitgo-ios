@@ -4,10 +4,14 @@
 # pitgo
 #
 # Run Script Build Phase — executa ANTES de "Compile Sources" no alvo principal. Valida
-# `supabaseUrl`/`supabaseKey` (Build Settings, expostas automaticamente como variáveis de ambiente
-# pelo Xcode) e interrompe o build com código de saída != 0 se qualquer regra falhar. Nunca ecoa o
-# valor recebido — mensagens citam somente o nome do campo e a regra violada
-# (ver contracts/supabase-configuration.md).
+# `supabaseUrl`/`supabaseKey` e, desde `019`, também os quatro campos de configuração do mapa
+# (`mapStyleUrl`/`mapStyleProviderName`/`mapStyleAttribution`/`mapStyleAttributionUrl`) — todos
+# Build Settings expostas automaticamente como variáveis de ambiente pelo Xcode — e interrompe o
+# build com código de saída != 0 se qualquer regra falhar. Nunca ecoa o valor recebido; mensagens
+# citam somente o nome do campo e a regra violada (ver contracts/supabase-configuration.md e
+# specs/019-map-production-tiles/contracts/map-style-build-validation.md). Duas funções, um só
+# script/Run Script Build Phase — mesma estrutura de `validateSupabaseConfiguration`/
+# `validateMapStyleConfiguration` já usada no `build.gradle.kts` do app Android.
 
 set -eu
 
@@ -20,6 +24,8 @@ trim() {
     # Remove espaços externos (início/fim), preservando o conteúdo interno.
     printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
+
+validate_supabase_config() {
 
 # --- supabaseUrl ------------------------------------------------------------------------------
 
@@ -65,7 +71,7 @@ case "$key_trimmed" in
         ;;
     sb_publishable_?*)
         # Chave publishable atual com sufixo não vazio — aceita.
-        exit 0
+        return 0
         ;;
 esac
 
@@ -112,7 +118,7 @@ fi
 single_role=$(printf '%s\n' "$roles" | head -n 1)
 case "$single_role" in
     anon)
-        exit 0
+        return 0
         ;;
     service_role)
         fail "supabaseKey é um JWT com role=service_role e não pode ser embutida no app."
@@ -121,3 +127,94 @@ case "$single_role" in
         fail "supabaseKey é um JWT com role não reconhecido para uso em cliente."
         ;;
 esac
+
+}
+
+validate_map_style_config() {
+
+# --- mapStyleUrl -------------------------------------------------------------------------------
+
+style_url_trimmed=$(trim "${mapStyleUrl:-}")
+
+if [ -z "$style_url_trimmed" ]; then
+    fail "mapStyleUrl está ausente ou contém apenas espaços."
+fi
+
+case "$style_url_trimmed" in
+    https://*) ;;
+    http://*) fail "mapStyleUrl usa esquema http:// — apenas https:// é aceito." ;;
+    *) fail "mapStyleUrl não é uma URI HTTPS absoluta." ;;
+esac
+
+style_url_authority=$(printf '%s' "$style_url_trimmed" | sed -E 's#^https://##' | sed -E 's#[/?#].*$##')
+
+if [ -z "$style_url_authority" ]; then
+    fail "mapStyleUrl não possui host."
+fi
+
+case "$style_url_authority" in
+    *@*) fail "mapStyleUrl não deve conter user-info (usuário@host)." ;;
+esac
+
+style_url_host=$(printf '%s' "$style_url_authority" | sed -E 's/:[0-9]+$//')
+if [ -z "$style_url_host" ]; then
+    fail "mapStyleUrl não possui host."
+fi
+
+# Hosts de demonstração/públicos conhecidos — nunca aceitos como provedor de produção (mesma
+# allowlist negativa de `validateMapStyleConfiguration` no build.gradle.kts do app Android).
+case "$style_url_host" in
+    demotiles.maplibre.org|tile.openstreetmap.org|*.tile.openstreetmap.org)
+        fail "mapStyleUrl aponta para um host de demonstração/público conhecido ($style_url_host) — configure um provedor de tiles gerenciado real."
+        ;;
+esac
+
+# --- mapStyleProviderName -----------------------------------------------------------------------
+
+provider_name_trimmed=$(trim "${mapStyleProviderName:-}")
+
+if [ -z "$provider_name_trimmed" ]; then
+    fail "mapStyleProviderName está ausente ou contém apenas espaços."
+fi
+
+# --- mapStyleAttribution -------------------------------------------------------------------------
+
+attribution_trimmed=$(trim "${mapStyleAttribution:-}")
+
+if [ -z "$attribution_trimmed" ]; then
+    fail "mapStyleAttribution está ausente ou contém apenas espaços."
+fi
+
+# --- mapStyleAttributionUrl ----------------------------------------------------------------------
+
+attribution_url_trimmed=$(trim "${mapStyleAttributionUrl:-}")
+
+if [ -z "$attribution_url_trimmed" ]; then
+    fail "mapStyleAttributionUrl está ausente ou contém apenas espaços."
+fi
+
+case "$attribution_url_trimmed" in
+    https://*) ;;
+    http://*) fail "mapStyleAttributionUrl usa esquema http:// — apenas https:// é aceito." ;;
+    *) fail "mapStyleAttributionUrl não é uma URI HTTPS absoluta." ;;
+esac
+
+attribution_url_authority=$(printf '%s' "$attribution_url_trimmed" | sed -E 's#^https://##' | sed -E 's#[/?#].*$##')
+
+if [ -z "$attribution_url_authority" ]; then
+    fail "mapStyleAttributionUrl não possui host."
+fi
+
+case "$attribution_url_authority" in
+    *@*) fail "mapStyleAttributionUrl não deve conter user-info (usuário@host)." ;;
+esac
+
+attribution_url_host=$(printf '%s' "$attribution_url_authority" | sed -E 's/:[0-9]+$//')
+if [ -z "$attribution_url_host" ]; then
+    fail "mapStyleAttributionUrl não possui host."
+fi
+
+}
+
+validate_supabase_config
+validate_map_style_config

@@ -7,13 +7,15 @@
 //  `MapStyleProvider` (`009`, campo único). Nunca registra URL/token em log — somente
 //  `ManagedMapStyleConfiguration.current` lê estas chaves.
 //
-//  NOTA (escopo, ver tasks.md `010`): o Run Script de validação (`004`/
-//  `Scripts/validate-supabase-config.sh`) não foi estendido para rejeitar hosts demo/públicos
-//  (`demotiles.maplibre.org`) porque este é justamente o default de avaliação já documentado em
-//  `Config/Shared.xcconfig` (`009`) — sem uma credencial real de provedor de tiles gerenciado nesta
-//  sessão, endurecer esse gate quebraria o único build local/CI existente. `providerName`/
-//  `attribution`/`attributionURL` têm defaults textuais verdadeiros para o estilo de avaliação
-//  (créditos reais do MapLibre/OSM), não um placeholder fabricado.
+//  NOTA (desde `019`): o Run Script de validação (`004`/`Scripts/validate-supabase-config.sh`)
+//  agora também rejeita hosts demo/públicos conhecidos (`demotiles.maplibre.org`,
+//  `tile.openstreetmap.org`) para `mapStyleUrl`, além de campo ausente/placeholder — build de
+//  produção sem uma configuração de mapa real não compila. O fallback `evaluationFallback` abaixo
+//  deixa de ser alcançável em qualquer build que passe por essa validação; ele permanece só como
+//  rede de segurança em runtime (não é o mecanismo que garante ausência do estilo de demonstração
+//  em produção — o Run Script é). `providerName`/`attribution`/`attributionURL` do fallback têm
+//  defaults textuais verdadeiros para o estilo de avaliação (créditos reais do MapLibre/OSM), não
+//  um placeholder fabricado.
 //
 
 import Foundation
