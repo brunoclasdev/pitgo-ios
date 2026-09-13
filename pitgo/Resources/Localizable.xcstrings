@@ -70,16 +70,6 @@
     "%lld min" : {
 
     },
-    "%lld PitTec%@ na região (posição aproximada)." : {
-      "localizations" : {
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld PitTec%2$@ na região (posição aproximada)."
-          }
-        }
-      }
-    },
     "A %@ de você" : {
 
     },
@@ -1989,9 +1979,6 @@
       }
     },
     "Nenhum cartão cadastrado." : {
-
-    },
-    "Nenhum PitTec disponível nesta região agora." : {
 
     },
     "Nenhum provider encontrado nesta área." : {

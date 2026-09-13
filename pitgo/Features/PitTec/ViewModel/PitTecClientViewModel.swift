@@ -18,6 +18,9 @@ final class PitTecClientViewModel {
     private(set) var routeContext: PitTecRouteContext?
     /// `018` FR-015/FR-017 — ver nota equivalente em `ClientMobileDispatchViewModel`.
     private(set) var refundStatus: PaymentStatus?
+    /// `020` FR-001/FR-002 — o mesmo fix já usado por `callPitTec`, exposto para a View centralizar
+    /// o mapa na posição do cliente em qualquer estado de descoberta/busca, com ou sem PitTec.
+    private(set) var lastFix: DeviceLocationFix?
 
     private let serviceID: UUID
     private let repository: PitTecRepository
@@ -27,7 +30,6 @@ final class PitTecClientViewModel {
     private var pendingAction: PendingDispatchAction?
     private var lastConfirmedSnapshot: PitTecDispatchSnapshot?
     private var isStarted = false
-    private var lastFix: DeviceLocationFix?
 
     init(
         serviceID: UUID,

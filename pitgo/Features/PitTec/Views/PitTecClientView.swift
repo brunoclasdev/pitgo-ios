@@ -167,40 +167,51 @@ struct PitTecClientView: View {
 
     // MARK: - Descoberta
 
+    /// `020` (revisado): a descoberta não informa proativamente se há ou não PitTec na região — só
+    /// mostra o mapa centralizado no cliente (com os marcadores aproximados quando existirem). A
+    /// ausência de PitTec só é comunicada depois que o cliente toca em "Chamar PitTec" e a busca
+    /// de fato se esgota (`terminalState`, `status == .exhausted`), nunca antes disso.
     private func discoveringState(_ markers: [PitTecMarker]) -> some View {
         VStack(spacing: 0) {
-            if markers.isEmpty {
-                emptyDiscoveryState
-            } else {
-                PitGoMapView(
-                    annotations: markers.map {
-                        PitGoMapAnnotationItem(id: $0.markerID, coordinate: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), symbolName: "wrench.and.screwdriver.fill")
-                    },
-                    zoomLevel: 12
-                )
-                .overlay(alignment: .bottomLeading) { MapAttributionView() }
-                Text("\(markers.count) PitTec\(markers.count == 1 ? "" : "s") na região (posição aproximada).")
-                    .font(PitGoTypography.caption)
-                    .foregroundStyle(tokens.textSecondary)
-                    .padding(8)
-            }
+            PitGoMapView(
+                annotations: markers.map {
+                    PitGoMapAnnotationItem(id: $0.markerID, coordinate: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), symbolName: "wrench.and.screwdriver.fill")
+                },
+                centerCoordinate: clientCoordinate,
+                showsUserLocation: true
+            )
+            .overlay(alignment: .bottomLeading) { MapAttributionView() }
             callButton
         }
     }
 
-    private var emptyDiscoveryState: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            Image(systemName: "wrench.and.screwdriver")
-                .font(.system(size: 40))
-                .foregroundStyle(tokens.textSecondary)
-            Text("Nenhum PitTec disponível nesta região agora.")
-                .font(PitGoTypography.body)
-                .multilineTextAlignment(.center)
-            Spacer()
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    /// `020` FR-001: posição do cliente já obtida na descoberta (`viewModel.lastFix`), reaproveitada
+    /// para centralizar o mapa em qualquer estado — nunca um novo fix pedido só para isso.
+    private var clientCoordinate: CLLocationCoordinate2D? {
+        viewModel.lastFix.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    /// `020` FR-002/FR-003/FR-004/FR-006: mapa sempre centralizado no cliente, sem marcador de
+    /// prestador, com uma mensagem (e ações opcionais) sobrepostas — usado tanto na descoberta sem
+    /// PitTec quanto na busca esgotada, nunca como tela substituta do mapa.
+    private func mapCenteredOnClient(icon: String, message: String, @ViewBuilder actions: () -> some View) -> some View {
+        PitGoMapView(annotations: [], centerCoordinate: clientCoordinate, showsUserLocation: true)
+            .overlay(alignment: .bottomLeading) { MapAttributionView() }
+            .overlay {
+                VStack(spacing: 12) {
+                    Image(systemName: icon)
+                        .font(.system(size: 32))
+                        .foregroundStyle(tokens.textSecondary)
+                    Text(message)
+                        .font(PitGoTypography.body)
+                        .multilineTextAlignment(.center)
+                        .accessibilityAddTraits(.updatesFrequently)
+                    actions()
+                }
+                .padding(20)
+                .background(tokens.surface, in: RoundedRectangle(cornerRadius: 16))
+                .padding(24)
+            }
     }
 
     private var callButton: some View {
@@ -332,33 +343,48 @@ struct PitTecClientView: View {
 
     // MARK: - Terminal/failure
 
+    @ViewBuilder
     private func terminalState(_ snapshot: PitTecDispatchSnapshot) -> some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: terminalSymbol(snapshot.status))
-                .font(.system(size: 40))
-                .foregroundStyle(tokens.textSecondary)
-            Text(terminalMessage(snapshot.status))
-                .font(PitGoTypography.body)
-                .multilineTextAlignment(.center)
-                .accessibilityAddTraits(.updatesFrequently)
-            if let refundMessage = refundMessage(for: viewModel.refundStatus) {
-                Text(refundMessage)
-                    .font(PitGoTypography.caption)
+        if snapshot.status == .exhausted {
+            // `020` FR-004: busca esgotada também mantém o mapa centralizado no cliente — as
+            // mensagens e ações terminais ficam sobrepostas, em vez da tela só-texto anterior. Os
+            // demais status terminais (`.completed`/`.cancelled`) continuam inalterados abaixo.
+            mapCenteredOnClient(icon: terminalSymbol(snapshot.status), message: terminalMessage(snapshot.status)) {
+                terminalActions(snapshot)
+            }
+        } else {
+            VStack(spacing: 16) {
+                Spacer()
+                Image(systemName: terminalSymbol(snapshot.status))
+                    .font(.system(size: 40))
                     .foregroundStyle(tokens.textSecondary)
+                Text(terminalMessage(snapshot.status))
+                    .font(PitGoTypography.body)
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(.updatesFrequently)
+                terminalActions(snapshot)
+                Spacer()
             }
-            if snapshot.status == .exhausted {
-                Button("Buscar novamente") { viewModel.retry() }
-                    .frame(minHeight: 44)
-            }
-            Button("Voltar", action: onBack)
-                .frame(minHeight: 44)
-            Spacer()
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func terminalActions(_ snapshot: PitTecDispatchSnapshot) -> some View {
+        if let refundMessage = refundMessage(for: viewModel.refundStatus) {
+            Text(refundMessage)
+                .font(PitGoTypography.caption)
+                .foregroundStyle(tokens.textSecondary)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.updatesFrequently)
+        }
+        if snapshot.status == .exhausted {
+            Button("Buscar novamente") { viewModel.retry() }
+                .frame(minHeight: 44)
+        }
+        Button("Voltar", action: onBack)
+            .frame(minHeight: 44)
     }
 
     /// `018` FR-015/FR-017/FR-018 — feedback de estorno, nunca silencioso.
