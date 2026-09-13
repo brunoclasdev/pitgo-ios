@@ -1,0 +1,3051 @@
+{
+  "sourceLanguage" : "pt-BR",
+  "strings" : {
+    "" : {
+
+    },
+    " 👋" : {
+
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ · %@/%@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@/%3$@"
+          }
+        }
+      }
+    },
+    "%@ %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
+    "%@ %@, principal" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@, principal"
+          }
+        }
+      }
+    },
+    "%@ •••• %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ •••• %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%lld min" : {
+
+    },
+    "%lld PitTec%@ na região (posição aproximada)." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld PitTec%2$@ na região (posição aproximada)."
+          }
+        }
+      }
+    },
+    "A %@ de você" : {
+
+    },
+    "A caminho do cliente." : {
+
+    },
+    "A definir na confirmação do atendimento" : {
+
+    },
+    "A partir de %@" : {
+
+    },
+    "A quilometragem não pode ser negativa." : {
+
+    },
+    "A senha deve ter no mínimo 8 caracteres." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A senha deve ter no mínimo 8 caracteres."
+          }
+        }
+      }
+    },
+    "A verificação de endereço expirou. Verifique novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A verificação de endereço expirou. Verifique novamente."
+          }
+        }
+      }
+    },
+    "Abrindo o acompanhamento…" : {
+
+    },
+    "Abrir" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir"
+          }
+        }
+      }
+    },
+    "Abrir Ajustes" : {
+
+    },
+    "Acompanhar atendimento" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acompanhar atendimento"
+          }
+        }
+      }
+    },
+    "Adicionar serviço" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionar serviço"
+          }
+        }
+      }
+    },
+    "Adicionar veículo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicionar veículo"
+          }
+        }
+      }
+    },
+    "Adicione ao menos uma oferta." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicione ao menos uma oferta."
+          }
+        }
+      }
+    },
+    "Agora não" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agora não"
+          }
+        }
+      }
+    },
+    "Agora saia desta conta e entre ou cadastre-se com a conta empresarial que deve receber a empresa (um e-mail diferente do seu e-mail de cliente)." : {
+
+    },
+    "Aguardando localização do prestador…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aguardando localização do prestador…"
+          }
+        }
+      }
+    },
+    "Aguardando localização…" : {
+
+    },
+    "Aguardando prestador" : {
+
+    },
+    "Alguns dados não puderam ser aceitos. Revise o formulário." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alguns dados não puderam ser aceitos. Revise o formulário."
+          }
+        }
+      }
+    },
+    "Ano de fabricação (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ano de fabricação (opcional)"
+          }
+        }
+      }
+    },
+    "Ano-modelo (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ano-modelo (opcional)"
+          }
+        }
+      }
+    },
+    "Ao vivo — atualizado às %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ao vivo — atualizado às %@"
+          }
+        }
+      }
+    },
+    "Aparece no mapa pelo endereço cadastrado." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aparece no mapa pelo endereço cadastrado."
+          }
+        }
+      }
+    },
+    "Aparência" : {
+
+    },
+    "Área da empresa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Área da empresa"
+          }
+        }
+      }
+    },
+    "As senhas não coincidem." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As senhas não coincidem."
+          }
+        }
+      }
+    },
+    "Assim que o pagamento for aprovado, o atendimento é despachado automaticamente." : {
+
+    },
+    "Atendimento %@" : {
+
+    },
+    "Atendimento aceito!" : {
+
+    },
+    "Atendimento em andamento" : {
+
+    },
+    "Atendimento encerrado." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atendimento encerrado."
+          }
+        }
+      }
+    },
+    "Atendimento móvel" : {
+
+    },
+    "Atendimento rápido" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atendimento rápido"
+          }
+        }
+      }
+    },
+    "Atendimento reservado" : {
+
+    },
+    "Atendimentos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atendimentos"
+          }
+        }
+      }
+    },
+    "Ative os Serviços de Localização nas Configurações do sistema." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ative os Serviços de Localização nas Configurações do sistema."
+          }
+        }
+      }
+    },
+    "Atribuição do mapa: %@" : {
+
+    },
+    "Av. Paulista, 1500 · São Paulo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Av. Paulista, 1500 · São Paulo"
+          }
+        }
+      }
+    },
+    "Bairro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bairro"
+          }
+        }
+      }
+    },
+    "Bateria" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bateria"
+          }
+        }
+      }
+    },
+    "Bateria, óleo, pneus, diagnóstico e mais." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bateria, óleo, pneus, diagnóstico e mais."
+          }
+        }
+      }
+    },
+    "BMW 320i M Sport" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BMW 320i M Sport"
+          }
+        }
+      }
+    },
+    "Buscando num raio de %@." : {
+
+    },
+    "Buscando prestador" : {
+
+    },
+    "Buscando prestador…" : {
+
+    },
+    "Buscando providers…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscando providers…"
+          }
+        }
+      }
+    },
+    "Buscar CEP" : {
+
+    },
+    "Buscar nesta área" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar nesta área"
+          }
+        }
+      }
+    },
+    "Buscar novamente" : {
+
+    },
+    "Cadastrar cartão" : {
+
+    },
+    "Cadastrar empresa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cadastrar empresa"
+          }
+        }
+      }
+    },
+    "Cadastrar veículo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cadastrar veículo"
+          }
+        }
+      }
+    },
+    "Cadastro concluído!" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cadastro concluído!"
+          }
+        }
+      }
+    },
+    "Cadastro da empresa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cadastro da empresa"
+          }
+        }
+      }
+    },
+    "Cadastro de cartão indisponível no momento." : {
+
+    },
+    "Câmbio (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Câmbio (opcional)"
+          }
+        }
+      }
+    },
+    "Cancelar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelar"
+          }
+        }
+      }
+    },
+    "Cancelar atendimento" : {
+
+    },
+    "Cancelar busca" : {
+
+    },
+    "Cancelar chamada" : {
+
+    },
+    "Cancelar migração" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelar migração"
+          }
+        }
+      }
+    },
+    "Cancelar solicitação" : {
+
+    },
+    "Carregando categorias…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carregando categorias…"
+          }
+        }
+      }
+    },
+    "Carregando serviços…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carregando serviços…"
+          }
+        }
+      }
+    },
+    "Carregando…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carregando…"
+          }
+        }
+      }
+    },
+    "Carro não liga" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carro não liga"
+          }
+        }
+      }
+    },
+    "Cartões salvos" : {
+
+    },
+    "Categoria" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Categoria"
+          }
+        }
+      }
+    },
+    "CEP" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CEP"
+          }
+        }
+      }
+    },
+    "CEP %@" : {
+
+    },
+    "CEP não encontrado. Verifique o número informado." : {
+
+    },
+    "Chamada PitTec" : {
+
+    },
+    "Chamar PitTec" : {
+
+    },
+    "Chassi (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chassi (opcional)"
+          }
+        }
+      }
+    },
+    "Chegada estimada" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chegada estimada"
+          }
+        }
+      }
+    },
+    "Cidade" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cidade"
+          }
+        }
+      }
+    },
+    "CNPJ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CNPJ"
+          }
+        }
+      }
+    },
+    "Combustível (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Combustível (opcional)"
+          }
+        }
+      }
+    },
+    "Complemento (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complemento (opcional)"
+          }
+        }
+      }
+    },
+    "Concluído" : {
+
+    },
+    "Concluir migração" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Concluir migração"
+          }
+        }
+      }
+    },
+    "Concluir migração da empresa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Concluir migração da empresa"
+          }
+        }
+      }
+    },
+    "Confirmando pagamento…" : {
+
+    },
+    "Confirmar cancelamento" : {
+
+    },
+    "Confirmar divergência de endereço?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmar divergência de endereço?"
+          }
+        }
+      }
+    },
+    "Confirmar endereço mesmo assim" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmar endereço mesmo assim"
+          }
+        }
+      }
+    },
+    "Confirmar senha" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmar senha"
+          }
+        }
+      }
+    },
+    "Confirme a divergência de endereço antes de continuar." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirme a divergência de endereço antes de continuar."
+          }
+        }
+      }
+    },
+    "Confirme a modalidade da empresa para concluir a transferência para esta conta." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirme a modalidade da empresa para concluir a transferência para esta conta."
+          }
+        }
+      }
+    },
+    "Continuar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar"
+          }
+        }
+      }
+    },
+    "Continuar editando" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar editando"
+          }
+        }
+      }
+    },
+    "Coordenadas (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coordenadas (opcional)"
+          }
+        }
+      }
+    },
+    "Copiado!" : {
+
+    },
+    "Copiar código Pix" : {
+
+    },
+    "Cor (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cor (opcional)"
+          }
+        }
+      }
+    },
+    "Corrigir endereço" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigir endereço"
+          }
+        }
+      }
+    },
+    "CPF" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPF"
+          }
+        }
+      }
+    },
+    "Crédito" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crédito"
+          }
+        }
+      }
+    },
+    "Criar conta" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Criar conta"
+          }
+        }
+      }
+    },
+    "Criar conta da empresa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Criar conta da empresa"
+          }
+        }
+      }
+    },
+    "Crie a conta da sua empresa para cadastrar dados, categorias e localização." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crie a conta da sua empresa para cadastrar dados, categorias e localização."
+          }
+        }
+      }
+    },
+    "CVV" : {
+
+    },
+    "Dados da empresa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dados da empresa"
+          }
+        }
+      }
+    },
+    "Débito" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Débito"
+          }
+        }
+      }
+    },
+    "Descartar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar"
+          }
+        }
+      }
+    },
+    "Descartar cadastro?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar cadastro?"
+          }
+        }
+      }
+    },
+    "Descartar dados do veículo?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar dados do veículo?"
+          }
+        }
+      }
+    },
+    "Descreva o problema (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descreva o problema (opcional)"
+          }
+        }
+      }
+    },
+    "Descreva o problema e sugerimos o serviço" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descreva o problema e sugerimos o serviço"
+          }
+        }
+      }
+    },
+    "Descrição (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descrição (opcional)"
+          }
+        }
+      }
+    },
+    "Descrição comercial (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descrição comercial (opcional)"
+          }
+        }
+      }
+    },
+    "Disponível para novos atendimentos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disponível para novos atendimentos"
+          }
+        }
+      }
+    },
+    "Divergência encontrada — confirme ou corrija o endereço." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Divergência encontrada — confirme ou corrija o endereço."
+          }
+        }
+      }
+    },
+    "Documento" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Documento"
+          }
+        }
+      }
+    },
+    "Duração (minutos)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duração (minutos)"
+          }
+        }
+      }
+    },
+    "E-mail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "E-mail"
+          }
+        }
+      }
+    },
+    "E-mail comercial" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "E-mail comercial"
+          }
+        }
+      }
+    },
+    "E-mail ou senha inválidos." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "E-mail ou senha inválidos."
+          }
+        }
+      }
+    },
+    "Encerrando…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encerrando…"
+          }
+        }
+      }
+    },
+    "Encerrar sessão?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encerrar sessão?"
+          }
+        }
+      }
+    },
+    "Encontre assistência para bateria, óleo, pneus e muito mais, onde você estiver." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encontre assistência para bateria, óleo, pneus e muito mais, onde você estiver."
+          }
+        }
+      }
+    },
+    "Endereço" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endereço"
+          }
+        }
+      }
+    },
+    "Endereço confirmado (%lld m do dispositivo)" : {
+
+    },
+    "Endereço fixo" : {
+
+    },
+    "Endereço fora do Brasil." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endereço fora do Brasil."
+          }
+        }
+      }
+    },
+    "Endereço incompleto ou ambíguo. Revise os dados." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endereço incompleto ou ambíguo. Revise os dados."
+          }
+        }
+      }
+    },
+    "Endereço inválido. Revise os dados." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endereço inválido. Revise os dados."
+          }
+        }
+      }
+    },
+    "Endereço não cadastrado" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endereço não cadastrado"
+          }
+        }
+      }
+    },
+    "Endereço não encontrado. Revise os dados." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endereço não encontrado. Revise os dados."
+          }
+        }
+      }
+    },
+    "Endereço salvo" : {
+
+    },
+    "Endereço verificado (%lld m do dispositivo)" : {
+
+    },
+    "Entrar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrar"
+          }
+        }
+      }
+    },
+    "Esta placa não está disponível." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta placa não está disponível."
+          }
+        }
+      }
+    },
+    "Estado" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado"
+          }
+        }
+      }
+    },
+    "Este atendimento foi encerrado." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este atendimento foi encerrado."
+          }
+        }
+      }
+    },
+    "Este atendimento já foi concluído ou cancelado." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este atendimento já foi concluído ou cancelado."
+          }
+        }
+      }
+    },
+    "Este campo é obrigatório." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este campo é obrigatório."
+          }
+        }
+      }
+    },
+    "Este chassi não está disponível." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este chassi não está disponível."
+          }
+        }
+      }
+    },
+    "Este identificador já está cadastrado." : {
+
+    },
+    "Este Renavam não está disponível." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este Renavam não está disponível."
+          }
+        }
+      }
+    },
+    "Este serviço já foi adicionado a outra oferta." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este serviço já foi adicionado a outra oferta."
+          }
+        }
+      }
+    },
+    "Este valor não está disponível." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este valor não está disponível."
+          }
+        }
+      }
+    },
+    "Estimativa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimativa"
+          }
+        }
+      }
+    },
+    "Ex.: Carro não está ligando" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ex.: Carro não está ligando"
+          }
+        }
+      }
+    },
+    "Fixo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fixo"
+          }
+        }
+      }
+    },
+    "Fixo (endereço)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fixo (endereço)"
+          }
+        }
+      }
+    },
+    "Forma de pagamento" : {
+
+    },
+    "Formas de pagamento" : {
+
+    },
+    "Garagem" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garagem"
+          }
+        }
+      }
+    },
+    "Gratuito" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gratuito"
+          }
+        }
+      }
+    },
+    "Guincho" : {
+
+    },
+    "ID do atendimento" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID do atendimento"
+          }
+        }
+      }
+    },
+    "Informe a marca do veículo." : {
+
+    },
+    "Informe a quilometragem usando um número inteiro." : {
+
+    },
+    "Informe o modelo do veículo." : {
+
+    },
+    "Informe o motivo do cancelamento." : {
+
+    },
+    "Informe um ano entre 1900 e %lld." : {
+
+    },
+    "Informe um chassi válido com 17 caracteres." : {
+
+    },
+    "Informe uma placa válida." : {
+
+    },
+    "Iniciando…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciando…"
+          }
+        }
+      }
+    },
+    "Iniciar migração" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar migração"
+          }
+        }
+      }
+    },
+    "Iniciar publicação de localização" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar publicação de localização"
+          }
+        }
+      }
+    },
+    "Início" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Início"
+          }
+        }
+      }
+    },
+    "Isso personaliza a Home com os dados do seu carro. Você pode fazer isso depois pela Garagem." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Isso personaliza a Home com os dados do seu carro. Você pode fazer isso depois pela Garagem."
+          }
+        }
+      }
+    },
+    "Latitude" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Latitude"
+          }
+        }
+      }
+    },
+    "Lista" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lista"
+          }
+        }
+      }
+    },
+    "Local do atendimento" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local do atendimento"
+          }
+        }
+      }
+    },
+    "Localização ainda não disponível." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Localização ainda não disponível."
+          }
+        }
+      }
+    },
+    "Localização do dispositivo imprecisa. Tente novamente ao ar livre." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Localização do dispositivo imprecisa. Tente novamente ao ar livre."
+          }
+        }
+      }
+    },
+    "Localização em tempo real" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Localização em tempo real"
+          }
+        }
+      }
+    },
+    "Localização não autorizada — mostrando uma região padrão. Ajuste o mapa e toque em \"Buscar nesta área\"." : {
+
+    },
+    "Localização não está sendo publicada." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Localização não está sendo publicada."
+          }
+        }
+      }
+    },
+    "Localizando serviço…" : {
+
+    },
+    "Longitude" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longitude"
+          }
+        }
+      }
+    },
+    "Luz no painel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luz no painel"
+          }
+        }
+      }
+    },
+    "Mapa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mapa"
+          }
+        }
+      }
+    },
+    "Marca" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marca"
+          }
+        }
+      }
+    },
+    "Migração iniciada — válida até %@." : {
+
+    },
+    "Migrar empresa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Migrar empresa"
+          }
+        }
+      }
+    },
+    "Migrar empresa para uma conta própria" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Migrar empresa para uma conta própria"
+          }
+        }
+      }
+    },
+    "Modalidade" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modalidade"
+          }
+        }
+      }
+    },
+    "Modalidade: fixa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modalidade: fixa"
+          }
+        }
+      }
+    },
+    "Modalidade: móvel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modalidade: móvel"
+          }
+        }
+      }
+    },
+    "Modelo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelo"
+          }
+        }
+      }
+    },
+    "Modo de exibição" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo de exibição"
+          }
+        }
+      }
+    },
+    "Mostrar senha" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar senha"
+          }
+        }
+      }
+    },
+    "Motivo do cancelamento" : {
+
+    },
+    "Motor (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Motor (opcional)"
+          }
+        }
+      }
+    },
+    "Móvel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Móvel"
+          }
+        }
+      }
+    },
+    "Móvel (em atendimento)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Móvel (em atendimento)"
+          }
+        }
+      }
+    },
+    "Móvel (Guincho)" : {
+
+    },
+    "Muitas tentativas em pouco tempo. Aguarde um momento antes de tentar de novo." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muitas tentativas em pouco tempo. Aguarde um momento antes de tentar de novo."
+          }
+        }
+      }
+    },
+    "Muitas tentativas. Aguarde um momento." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muitas tentativas. Aguarde um momento."
+          }
+        }
+      }
+    },
+    "Não foi possível carregar as categorias." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível carregar as categorias."
+          }
+        }
+      }
+    },
+    "Não foi possível carregar este serviço." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível carregar este serviço."
+          }
+        }
+      }
+    },
+    "Não foi possível carregar os dados da empresa." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível carregar os dados da empresa."
+          }
+        }
+      }
+    },
+    "Não foi possível carregar os providers. Tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível carregar os providers. Tente novamente."
+          }
+        }
+      }
+    },
+    "Não foi possível carregar os serviços." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível carregar os serviços."
+          }
+        }
+      }
+    },
+    "Não foi possível carregar seu perfil agora." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível carregar seu perfil agora."
+          }
+        }
+      }
+    },
+    "Não foi possível carregar seus cartões." : {
+
+    },
+    "Não foi possível carregar seus veículos agora." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível carregar seus veículos agora."
+          }
+        }
+      }
+    },
+    "Não foi possível carregar sua Home agora." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível carregar sua Home agora."
+          }
+        }
+      }
+    },
+    "Não foi possível concluir a ação. Tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir a ação. Tente novamente."
+          }
+        }
+      }
+    },
+    "Não foi possível concluir a migração. Tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir a migração. Tente novamente."
+          }
+        }
+      }
+    },
+    "Não foi possível concluir agora. Tente novamente em instantes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir agora. Tente novamente em instantes."
+          }
+        }
+      }
+    },
+    "Não foi possível concluir agora. Tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir agora. Tente novamente."
+          }
+        }
+      }
+    },
+    "Não foi possível concluir com estes dados. Verifique o documento informado." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir com estes dados. Verifique o documento informado."
+          }
+        }
+      }
+    },
+    "Não foi possível concluir com estes dados. Verifique o e-mail informado." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir com estes dados. Verifique o e-mail informado."
+          }
+        }
+      }
+    },
+    "Não foi possível concluir esta ação agora. Tente novamente." : {
+
+    },
+    "Não foi possível concluir o cadastro. Tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir o cadastro. Tente novamente."
+          }
+        }
+      }
+    },
+    "Não foi possível entrar. Tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível entrar. Tente novamente."
+          }
+        }
+      }
+    },
+    "Não foi possível iniciar a migração. Tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível iniciar a migração. Tente novamente."
+          }
+        }
+      }
+    },
+    "Não foi possível iniciar a migração. Verifique se sua conta possui uma empresa pendente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível iniciar a migração. Verifique se sua conta possui uma empresa pendente."
+          }
+        }
+      }
+    },
+    "Não foi possível localizar o serviço desta modalidade no catálogo." : {
+
+    },
+    "Não foi possível obter sua localização a tempo. Tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível obter sua localização a tempo. Tente novamente."
+          }
+        }
+      }
+    },
+    "Não foi possível salvar o veículo. Tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível salvar o veículo. Tente novamente."
+          }
+        }
+      }
+    },
+    "Não foi possível verificar o endereço. Tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível verificar o endereço. Tente novamente."
+          }
+        }
+      }
+    },
+    "Não foi possível verificar sua sessão sem conexão com a internet." : {
+
+    },
+    "Não sei o que aconteceu" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não sei o que aconteceu"
+          }
+        }
+      }
+    },
+    "Nenhum cartão cadastrado." : {
+
+    },
+    "Nenhum PitTec disponível nesta região agora." : {
+
+    },
+    "Nenhum provider encontrado nesta área." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum provider encontrado nesta área."
+          }
+        }
+      }
+    },
+    "Nenhum serviço disponível no momento." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum serviço disponível no momento."
+          }
+        }
+      }
+    },
+    "Nenhum serviço nesta categoria." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum serviço nesta categoria."
+          }
+        }
+      }
+    },
+    "Nenhum veículo cadastrado" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum veículo cadastrado"
+          }
+        }
+      }
+    },
+    "Nenhum veículo selecionado" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum veículo selecionado"
+          }
+        }
+      }
+    },
+    "Nenhuma categoria disponível no momento." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhuma categoria disponível no momento."
+          }
+        }
+      }
+    },
+    "Nenhuma chamada no momento." : {
+
+    },
+    "Nenhuma solicitação no momento." : {
+
+    },
+    "Nome completo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome completo"
+          }
+        }
+      }
+    },
+    "Nome da empresa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome da empresa"
+          }
+        }
+      }
+    },
+    "Nome impresso no cartão" : {
+
+    },
+    "Nome no cartão" : {
+
+    },
+    "Nova chamada PitTec" : {
+
+    },
+    "Nova solicitação" : {
+
+    },
+    "Número" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Número"
+          }
+        }
+      }
+    },
+    "Número do cartão" : {
+
+    },
+    "O cadastro de veículos está temporariamente indisponível. Tente novamente mais tarde." : {
+
+    },
+    "O cadastro é totalmente opcional — Pix continua disponível sem ele." : {
+
+    },
+    "O desafio de migração expirou ou não é mais válido. Reinicie a migração a partir da conta de cliente." : {
+
+    },
+    "O PitGo resolve." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O PitGo resolve."
+          }
+        }
+      }
+    },
+    "O PitTec chegou." : {
+
+    },
+    "O PitTec está a caminho." : {
+
+    },
+    "O que seu carro precisa hoje?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que seu carro precisa hoje?"
+          }
+        }
+      }
+    },
+    "O Renavam deve conter 11 dígitos." : {
+
+    },
+    "Obtendo sua localização…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obtendo sua localização…"
+          }
+        }
+      }
+    },
+    "Ocultar senha" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultar senha"
+          }
+        }
+      }
+    },
+    "Olá," : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Olá,"
+          }
+        }
+      }
+    },
+    "Outro dispositivo está publicando a localização deste atendimento." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outro dispositivo está publicando a localização deste atendimento."
+          }
+        }
+      }
+    },
+    "Pagamento" : {
+
+    },
+    "PAGAMENTO" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PAGAMENTO"
+          }
+        }
+      }
+    },
+    "Pagar com Pix" : {
+
+    },
+    "País: Brasil" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "País: Brasil"
+          }
+        }
+      }
+    },
+    "Parar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parar"
+          }
+        }
+      }
+    },
+    "Pequenos reparos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pequenos reparos"
+          }
+        }
+      }
+    },
+    "Perfil" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perfil"
+          }
+        }
+      }
+    },
+    "Permita o acesso à localização nas Configurações." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permita o acesso à localização nas Configurações."
+          }
+        }
+      }
+    },
+    "Pessoa física" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pessoa física"
+          }
+        }
+      }
+    },
+    "Pessoa jurídica" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pessoa jurídica"
+          }
+        }
+      }
+    },
+    "PGO-2A20" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PGO-2A20"
+          }
+        }
+      }
+    },
+    "PitGo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PitGo"
+          }
+        }
+      }
+    },
+    "PitTec" : {
+
+    },
+    "PitTec (sob demanda)" : {
+
+    },
+    "PitTechs próximos em minutos." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PitTechs próximos em minutos."
+          }
+        }
+      }
+    },
+    "PIX" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PIX"
+          }
+        }
+      }
+    },
+    "Placa (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placa (opcional)"
+          }
+        }
+      }
+    },
+    "Pneus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pneus"
+          }
+        }
+      }
+    },
+    "Por que você está cancelando?" : {
+
+    },
+    "Posição do guincho indisponível no momento." : {
+
+    },
+    "Preço (R$)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preço (R$)"
+          }
+        }
+      }
+    },
+    "Preço garantido: %@" : {
+
+    },
+    "Preparando migração…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparando migração…"
+          }
+        }
+      }
+    },
+    "Prestador" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prestador"
+          }
+        }
+      }
+    },
+    "Principal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Principal"
+          }
+        }
+      }
+    },
+    "Procurando guinchos num raio de %@." : {
+
+    },
+    "Procurando PitTec" : {
+
+    },
+    "Profissionais avaliados e aprovados." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profissionais avaliados e aprovados."
+          }
+        }
+      }
+    },
+    "Providers próximos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Providers próximos"
+          }
+        }
+      }
+    },
+    "Publica localização em tempo real somente durante um atendimento aceito." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publica localização em tempo real somente durante um atendimento aceito."
+          }
+        }
+      }
+    },
+    "Publicação de localização" : {
+
+    },
+    "Publicando — última atualização às %@" : {
+
+    },
+    "QR Code do Pix" : {
+
+    },
+    "Quer cadastrar seu veículo agora?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quer cadastrar seu veículo agora?"
+          }
+        }
+      }
+    },
+    "Quilometragem (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quilometragem (opcional)"
+          }
+        }
+      }
+    },
+    "Razão social / nome da empresa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Razão social / nome da empresa"
+          }
+        }
+      }
+    },
+    "Remover cartão" : {
+
+    },
+    "Remover serviço" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remover serviço"
+          }
+        }
+      }
+    },
+    "Renavam (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renavam (opcional)"
+          }
+        }
+      }
+    },
+    "Rua" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rua"
+          }
+        }
+      }
+    },
+    "Sair" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sair"
+          }
+        }
+      }
+    },
+    "Salvar cartão" : {
+
+    },
+    "Salvar endereço" : {
+
+    },
+    "Salvar veículo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvar veículo"
+          }
+        }
+      }
+    },
+    "Selecione" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selecione"
+          }
+        }
+      }
+    },
+    "Sem conexão com a internet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem conexão com a internet."
+          }
+        }
+      }
+    },
+    "Sem conexão com a internet. Verifique sua rede e tente novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem conexão com a internet. Verifique sua rede e tente novamente."
+          }
+        }
+      }
+    },
+    "Senha" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senha"
+          }
+        }
+      }
+    },
+    "Senha (mínimo 8 caracteres)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senha (mínimo 8 caracteres)"
+          }
+        }
+      }
+    },
+    "Serviço" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serviço"
+          }
+        }
+      }
+    },
+    "Serviço de verificação indisponível no momento." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serviço de verificação indisponível no momento."
+          }
+        }
+      }
+    },
+    "Serviço gratuito" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serviço gratuito"
+          }
+        }
+      }
+    },
+    "Serviços" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serviços"
+          }
+        }
+      }
+    },
+    "Serviços oferecidos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serviços oferecidos"
+          }
+        }
+      }
+    },
+    "Seu carro precisa." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seu carro precisa."
+          }
+        }
+      }
+    },
+    "Solicitação" : {
+
+    },
+    "Solicitação enviada!" : {
+
+    },
+    "Solicitar atendimento" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solicitar atendimento"
+          }
+        }
+      }
+    },
+    "SOLICITAR ATENDIMENTO" : {
+
+    },
+    "SOLICITAR PITTECH" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SOLICITAR PITTECH"
+          }
+        }
+      }
+    },
+    "Sou uma empresa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sou uma empresa"
+          }
+        }
+      }
+    },
+    "Sou uma empresa · Cadastrar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sou uma empresa · Cadastrar"
+          }
+        }
+      }
+    },
+    "Sua conta de cliente possui uma empresa cadastrada pelo modelo anterior. Você pode transferir essa empresa para uma conta empresarial própria, com um e-mail diferente. Seu perfil de cliente permanece como está." : {
+
+    },
+    "Sua conta foi criada, mas ainda estamos confirmando seu perfil. Toque em Tentar novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sua conta foi criada, mas ainda estamos confirmando seu perfil. Toque em Tentar novamente."
+          }
+        }
+      }
+    },
+    "Sua empresa já está cadastrada." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sua empresa já está cadastrada."
+          }
+        }
+      }
+    },
+    "Sua empresa não está elegível para tracking no momento." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sua empresa não está elegível para tracking no momento."
+          }
+        }
+      }
+    },
+    "Sua sessão expirou. Entre novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sua sessão expirou. Entre novamente."
+          }
+        }
+      }
+    },
+    "Sua sessão não permite esta ação." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sua sessão não permite esta ação."
+          }
+        }
+      }
+    },
+    "Técnicos verificados" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Técnicos verificados"
+          }
+        }
+      }
+    },
+    "Telefone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telefone"
+          }
+        }
+      }
+    },
+    "Tentar novamente" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tentar novamente"
+          }
+        }
+      }
+    },
+    "Tipo de pessoa" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tipo de pessoa"
+          }
+        }
+      }
+    },
+    "Toque para cadastrar ou selecionar um veículo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toque para cadastrar ou selecionar um veículo"
+          }
+        }
+      }
+    },
+    "Toque para cadastrar seu endereço" : {
+
+    },
+    "Tornar principal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tornar principal"
+          }
+        }
+      }
+    },
+    "Troca de óleo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Troca de óleo"
+          }
+        }
+      }
+    },
+    "Trocar de conta" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trocar de conta"
+          }
+        }
+      }
+    },
+    "Trocar forma de pagamento" : {
+
+    },
+    "Tudo pelo app" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tudo pelo app"
+          }
+        }
+      }
+    },
+    "Um dos serviços já foi adicionado. Revise as ofertas." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um dos serviços já foi adicionado. Revise as ofertas."
+          }
+        }
+      }
+    },
+    "Um dos serviços não está mais disponível. Selecione novamente." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um dos serviços não está mais disponível. Selecione novamente."
+          }
+        }
+      }
+    },
+    "Validade" : {
+
+    },
+    "Valor definido pela plataforma — sem cadastro de preço." : {
+
+    },
+    "Valor estimado" : {
+
+    },
+    "Valor final pode variar conforme diagnóstico e peças usadas." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valor final pode variar conforme diagnóstico e peças usadas."
+          }
+        }
+      }
+    },
+    "Valor fora do intervalo permitido." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valor fora do intervalo permitido."
+          }
+        }
+      }
+    },
+    "Veículo selecionado" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Veículo selecionado"
+          }
+        }
+      }
+    },
+    "Verificando endereço…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificando endereço…"
+          }
+        }
+      }
+    },
+    "Verificar endereço" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificar endereço"
+          }
+        }
+      }
+    },
+    "Verifique o formato informado." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifique o formato informado."
+          }
+        }
+      }
+    },
+    "Verifique o valor informado." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifique o valor informado."
+          }
+        }
+      }
+    },
+    "Versão (opcional)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versão (opcional)"
+          }
+        }
+      }
+    },
+    "Você chegou ao local." : {
+
+    },
+    "Você será avisado quando o prestador responder ao pedido de %@." : {
+
+    },
+    "Voltar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voltar"
+          }
+        }
+      }
+    },
+    "Voltar ao perfil" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voltar ao perfil"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
