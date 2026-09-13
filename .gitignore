@@ -1,0 +1,113 @@
+# ==============================
+# Xcode
+# ==============================
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+timeline.xctimeline
+playground.xcworkspace
+DebugSourceCache/
+
+# Xcode 8+: arquivos gerados de patch/merge
+*.orig
+*.rej
+
+# Instruments
+*.trace
+
+# ==============================
+# Swift Package Manager
+# ==============================
+.build/
+.swiftpm/
+# Package.resolved sob xcshareddata (SPM integrado ao Xcode) é dado compartilhado do time e
+# fixa as versões das dependências — deve ser rastreado, não ignorado. Só ignoramos o
+# Package.resolved de um pacote SPM standalone na raiz do repo (não é o caso deste projeto).
+/Package.resolved
+
+# ==============================
+# CocoaPods (só relevante se adotado futuramente)
+# ==============================
+Pods/
+
+# ==============================
+# Carthage (só relevante se adotado futuramente)
+# ==============================
+Carthage/Build/
+Carthage/Checkouts/
+
+# ==============================
+# fastlane (só relevante se adotado futuramente)
+# ==============================
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+fastlane/README.md
+
+# ==============================
+# CI / cobertura / lint
+# ==============================
+*.gcno
+*.gcda
+*.gcov
+.swiftlint_cache/
+*.profraw
+
+# ==============================
+# Assinatura / distribuição — nunca versionar
+# ==============================
+*.mobileprovision
+*.p12
+*.cer
+*.certSigningRequest
+
+# ==============================
+# Segredos / config local — nunca commitar
+# ==============================
+Secrets.plist
+*.xcconfig.local
+Config/Local.xcconfig
+Config/Secrets.xcconfig
+.env
+.env.local
+.env.*.local
+
+# ==============================
+# Supabase CLI (estado local da máquina)
+# ==============================
+supabase/.temp/
+supabase/.branches/
+
+# ==============================
+# macOS
+# ==============================
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# ==============================
+# Editores (opcional, para quem usa além do Xcode)
+# ==============================
+.vscode/
+.idea/
+
+# ==============================
+# Spec Kit — estado local da máquina (ver .specify/)
+# ==============================
+.specify/feature.json
+.specify/extensions/*/local-config.yml
