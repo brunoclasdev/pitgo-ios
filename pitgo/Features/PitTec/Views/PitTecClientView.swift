@@ -1,0 +1,410 @@
+//
+//  PitTecClientView.swift
+//  pitgo
+//
+//  Tela dedicada do PitTec sob demanda (`015`) — descoberta aproximada, "Chamar PitTec", busca e
+//  acompanhamento pós-aceite, tudo nesta mesma tela (evita depender de `AppointmentTrackingView`,
+//  que não conhece rota/distância PitTec; ver nota em `PitTecRepository.swift` sobre a Edge
+//  Function `pittec-route` ausente — a linha exibida é sempre a estimativa direta tracejada).
+//
+
+import CoreLocation
+import SwiftUI
+
+struct PitTecClientView: View {
+    @Environment(\.pitGoTokens) private var tokens
+    @State private var viewModel: PitTecClientViewModel
+    @State private var showCancellationSheet = false
+    /// `018`: "Chamar PitTec" abre o checkout antes de `startDispatch` — `start_pittec_dispatch`
+    /// exige pagamento aprovado (guarda verificada nesta sessão contra o backend real).
+    @State private var showPaymentSheet = false
+
+    let serviceID: UUID
+    let catalogRepository: ServiceCatalogRepository
+    let paymentRepository: PaymentRepository
+    let savedCardRepository: SavedCardRepository
+    let onBack: () -> Void
+    let onSessionExpired: () -> Void
+
+    init(
+        serviceID: UUID,
+        repository: PitTecRepository,
+        locationRepository: DeviceLocationRepository,
+        catalogRepository: ServiceCatalogRepository,
+        paymentRepository: PaymentRepository,
+        savedCardRepository: SavedCardRepository,
+        onBack: @escaping () -> Void,
+        onSessionExpired: @escaping () -> Void
+    ) {
+        self.serviceID = serviceID
+        _viewModel = State(initialValue: PitTecClientViewModel(
+            serviceID: serviceID,
+            repository: repository,
+            paymentRepository: paymentRepository,
+            locationRepository: locationRepository
+        ))
+        self.catalogRepository = catalogRepository
+        self.paymentRepository = paymentRepository
+        self.savedCardRepository = savedCardRepository
+        self.onBack = onBack
+        self.onSessionExpired = onSessionExpired
+    }
+
+    var body: some View {
+        content
+            .background(tokens.background)
+            .navigationTitle("PitTec")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: handleBack) {
+                        Image(systemName: "chevron.left")
+                    }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityLabel("Voltar")
+                }
+            }
+            .task { viewModel.start() }
+            .onDisappear { viewModel.stop() }
+            .onChange(of: isSessionExpired) { _, expired in
+                if expired { onSessionExpired() }
+            }
+            .sheet(isPresented: $showCancellationSheet) {
+                DispatchCancellationSheet(isSubmitting: isPendingCancel) { reason in
+                    viewModel.cancel(reason: reason)
+                }
+                .interactiveDismissDisabled(isPendingCancel)
+            }
+            .sheet(isPresented: $showPaymentSheet) {
+                PaymentCheckoutView(
+                    serviceID: serviceID,
+                    dispatchKind: .pittecAutoSequential,
+                    catalogRepository: catalogRepository,
+                    paymentRepository: paymentRepository,
+                    savedCardRepository: savedCardRepository,
+                    onApproved: { requestID in
+                        showPaymentSheet = false
+                        viewModel.callPitTec(requestID: requestID)
+                    },
+                    onSessionExpired: onSessionExpired
+                )
+            }
+    }
+
+    private func handleBack() {
+        guard case let .content(snapshot, nil) = viewModel.state, snapshot.appointment != nil else {
+            onBack()
+            return
+        }
+        if viewModel.requiresCancellationReason {
+            showCancellationSheet = true
+        } else {
+            onBack()
+        }
+    }
+
+    private var isSessionExpired: Bool {
+        if case .sessionExpired = viewModel.state { return true }
+        return false
+    }
+
+    private var isPendingCancel: Bool {
+        guard case let .content(_, pending) = viewModel.state, let pending else { return false }
+        if case .cancel = pending.kind { return true }
+        return false
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch viewModel.state {
+        case .restoring:
+            ProgressView("Carregando…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case let .locationRequired(reason):
+            locationRequiredState(reason)
+        case let .discovering(markers):
+            discoveringState(markers)
+        case let .content(snapshot, pendingAction):
+            contentState(snapshot, pendingAction: pendingAction)
+        case let .terminal(snapshot):
+            terminalState(snapshot)
+        case .failure:
+            failureState()
+        case .sessionExpired:
+            Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    // MARK: - Location required
+
+    private func locationRequiredState(_ reason: LocationRequiredReason) -> some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "location.slash")
+                .font(.system(size: 40))
+                .foregroundStyle(tokens.textSecondary)
+            Text(locationRequiredMessage(reason))
+                .font(PitGoTypography.body)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.updatesFrequently)
+            Button("Tentar novamente") { viewModel.retry() }
+                .frame(minHeight: 44)
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func locationRequiredMessage(_ reason: LocationRequiredReason) -> String {
+        switch reason {
+        case .permissionDenied: "Precisamos da sua localização para mostrar os PitTecs próximos. Permita o acesso nos Ajustes."
+        case .serviceDisabled: "Ative os Serviços de Localização nas Configurações do sistema."
+        case .timeout: "Não foi possível obter sua localização a tempo. Tente novamente."
+        case .unknown: "Não foi possível obter sua localização. Tente novamente."
+        }
+    }
+
+    // MARK: - Descoberta
+
+    private func discoveringState(_ markers: [PitTecMarker]) -> some View {
+        VStack(spacing: 0) {
+            if markers.isEmpty {
+                emptyDiscoveryState
+            } else {
+                PitGoMapView(
+                    annotations: markers.map {
+                        PitGoMapAnnotationItem(id: $0.markerID, coordinate: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), symbolName: "wrench.and.screwdriver.fill")
+                    },
+                    zoomLevel: 12
+                )
+                .overlay(alignment: .bottomLeading) { MapAttributionView() }
+                Text("\(markers.count) PitTec\(markers.count == 1 ? "" : "s") na região (posição aproximada).")
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
+                    .padding(8)
+            }
+            callButton
+        }
+    }
+
+    private var emptyDiscoveryState: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "wrench.and.screwdriver")
+                .font(.system(size: 40))
+                .foregroundStyle(tokens.textSecondary)
+            Text("Nenhum PitTec disponível nesta região agora.")
+                .font(PitGoTypography.body)
+                .multilineTextAlignment(.center)
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var callButton: some View {
+        Button(action: { showPaymentSheet = true }) {
+            Text("Chamar PitTec")
+                .frame(maxWidth: .infinity)
+                .padding()
+        }
+        .foregroundStyle(.white)
+        .background(tokens.accent)
+        .clipShape(Capsule())
+        .frame(minHeight: 56)
+        .padding(16)
+    }
+
+    // MARK: - Content
+
+    @ViewBuilder
+    private func contentState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
+        switch snapshot.status {
+        case .searching:
+            searchingState(snapshot, pendingAction: pendingAction)
+        case .optionFound:
+            // PitTec não expõe candidato ao cliente antes do aceite — este status não deveria
+            // ocorrer no snapshot PitTec (só existe no vocabulário do guincho móvel), mas é tratado
+            // como "buscando" por segurança, nunca travando a tela.
+            searchingState(snapshot, pendingAction: pendingAction)
+        case .awaitingProvider:
+            searchingState(snapshot, pendingAction: pendingAction)
+        case .accepted, .inProgress:
+            acceptedState(snapshot, pendingAction: pendingAction)
+        case .cancelled, .completed, .exhausted:
+            terminalState(snapshot)
+        }
+    }
+
+    private func searchingState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
+        VStack(spacing: 20) {
+            Spacer()
+            ProgressView()
+            Text("Procurando PitTec")
+                .font(PitGoTypography.sectionTitle)
+                .accessibilityAddTraits(.isHeader)
+            if let notice = snapshot.recentNotice {
+                Text(noticeMessage(notice))
+                    .font(PitGoTypography.body)
+                    .foregroundStyle(tokens.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+            Text("Buscando num raio de \(formattedRadius(snapshot.radiusMeters)).")
+                .font(PitGoTypography.caption)
+                .foregroundStyle(tokens.textSecondary)
+            if snapshot.allowedActions.contains(.cancel) {
+                Button("Cancelar chamada") { viewModel.cancel() }
+                    .frame(minHeight: 44)
+                    .disabled(pendingAction != nil)
+            }
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func noticeMessage(_ notice: PitTecLastEvent) -> String {
+        switch notice {
+        case .providerRejected: "Um PitTec recusou a chamada. Procurando o próximo…"
+        case .proposalExpired: "O prazo de resposta esgotou. Procurando o próximo…"
+        case .providerCancelled: "O PitTec cancelou. Procurando o próximo…"
+        }
+    }
+
+    private func acceptedState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
+        VStack(spacing: 0) {
+            if let context = viewModel.routeContext {
+                PitGoMapView(
+                    annotations: [
+                        PitGoMapAnnotationItem(id: "pittec", coordinate: CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude), title: snapshot.provider?.displayName, symbolName: "wrench.and.screwdriver.fill"),
+                        PitGoMapAnnotationItem(id: "client", coordinate: CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude), title: "Você"),
+                    ],
+                    routeLine: [
+                        CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
+                        CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude),
+                    ]
+                )
+                .overlay(alignment: .bottomLeading) { MapAttributionView() }
+            } else {
+                VStack {
+                    Spacer()
+                    ProgressView("Aguardando localização…")
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            statusCard(snapshot, pendingAction: pendingAction)
+        }
+    }
+
+    private func statusCard(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(snapshot.provider?.displayName ?? "PitTec", systemImage: "wrench.and.screwdriver.fill")
+                .font(PitGoTypography.sectionTitle)
+                .accessibilityAddTraits(.isHeader)
+            Text(snapshot.hasArrived ? "O PitTec chegou." : "O PitTec está a caminho.")
+                .font(PitGoTypography.body)
+            Text(distanceText())
+                .font(PitGoTypography.body)
+                .foregroundStyle(tokens.textSecondary)
+                .accessibilityAddTraits(.updatesFrequently)
+            if snapshot.allowedActions.contains(.cancel) {
+                Button("Cancelar atendimento") { showCancellationSheet = true }
+                    .frame(minHeight: 44)
+                    .disabled(pendingAction != nil)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tokens.surface)
+    }
+
+    private func distanceText() -> String {
+        guard let context = viewModel.routeContext else { return "Distância estimada indisponível no momento." }
+        let providerLocation = CLLocation(latitude: context.providerLatitude, longitude: context.providerLongitude)
+        let clientLocation = CLLocation(latitude: context.clientLatitude, longitude: context.clientLongitude)
+        let meters = providerLocation.distance(from: clientLocation)
+        let km = meters / 1000
+        return String(format: "Estimativa direta: %.1f km (linha reta, não é a rota real)", km)
+    }
+
+    // MARK: - Terminal/failure
+
+    private func terminalState(_ snapshot: PitTecDispatchSnapshot) -> some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: terminalSymbol(snapshot.status))
+                .font(.system(size: 40))
+                .foregroundStyle(tokens.textSecondary)
+            Text(terminalMessage(snapshot.status))
+                .font(PitGoTypography.body)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.updatesFrequently)
+            if let refundMessage = refundMessage(for: viewModel.refundStatus) {
+                Text(refundMessage)
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+            if snapshot.status == .exhausted {
+                Button("Buscar novamente") { viewModel.retry() }
+                    .frame(minHeight: 44)
+            }
+            Button("Voltar", action: onBack)
+                .frame(minHeight: 44)
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// `018` FR-015/FR-017/FR-018 — feedback de estorno, nunca silencioso.
+    private func refundMessage(for status: PaymentStatus?) -> String? {
+        switch status {
+        case .refunded: "Valor estornado."
+        case .refundFailed: "Reembolso em andamento — nossa equipe já foi avisada."
+        default: nil
+        }
+    }
+
+    private func terminalSymbol(_ status: ServiceSearchStatus) -> String {
+        switch status {
+        case .completed: "checkmark.circle"
+        case .cancelled: "xmark.circle"
+        default: "magnifyingglass"
+        }
+    }
+
+    private func terminalMessage(_ status: ServiceSearchStatus) -> String {
+        switch status {
+        case .completed: "Atendimento concluído."
+        case .cancelled: "Chamada cancelada."
+        case .exhausted: "Nenhum PitTec disponível nesta região no momento."
+        default: "Busca encerrada."
+        }
+    }
+
+    private func failureState() -> some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Text("Não foi possível concluir agora. Tente novamente.")
+                .font(PitGoTypography.body)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.updatesFrequently)
+            Button("Tentar novamente") { viewModel.retry() }
+                .frame(minHeight: 44)
+            Button("Voltar", action: onBack)
+                .frame(minHeight: 44)
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func formattedRadius(_ meters: Int) -> String {
+        meters >= 1000 ? "\(meters / 1000) km" : "\(meters) m"
+    }
+}

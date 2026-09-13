@@ -1,0 +1,107 @@
+//
+//  PaymentModels.swift
+//  pitgo
+//
+//  Domínio de pagamento (`018`). Formatos confirmados nesta sessão via `pg_get_functiondef`/
+//  inspeção de schema no projeto Supabase compartilhado — `payments`/`saved_cards`, as cinco Edge
+//  Functions e a guarda de pagamento JÁ ESTAVAM implantadas (presumivelmente pelo trabalho Android
+//  de `018`) quando esta feature começou no iOS; nenhuma migration/Edge Function nova foi autorada
+//  aqui.
+//
+//  ACHADO CRÍTICO desta sessão, que substitui o ponto de gate descrito em `research.md §9` deste
+//  spec: `research.md` argumenta que o gate de MOBILE_SEQUENTIAL deveria viver em
+//  `request_mobile_dispatch_candidate` (depois de um candidato existir), não em
+//  `start_mobile_dispatch`. A inspeção direta da função REAL implantada mostra o oposto: o gate está
+//  em `start_mobile_dispatch` (`payments.request_id = p_search_id`), exatamente como o Android já
+//  implementou (`PaymentCheckoutViewModel.kt`, que gera o `requestId` a partir da Home, antes de
+//  qualquer busca existir). `request_mobile_dispatch_candidate` continua SEM guarda nenhuma —
+//  reservar um candidato específico não exige pagamento além do já feito para iniciar a busca. Este
+//  client segue a realidade verificada, não o texto do research.md.
+//
+//  ACHADO ADICIONAL: `list_home_services().minimum_price` é sempre 0 para
+//  PITTEC_AUTO_SEQUENTIAL (a oferta do prestador PitTec é `is_free = true`/preço zero por desenho,
+//  `016`) — não pode ser reaproveitado como valor cobrado do cliente. O Android
+//  (`PaymentCheckoutViewModel.kt`) reaproveita `service.minimumPrice` para os dois `dispatchKind`
+//  indistintamente, o que resultaria em `amount = 0`/`InvalidService` contra os dados reais de
+//  PitTec hoje — não replicado aqui. `PaymentPricing.pittecPlatformFee` é a tarifa fixa de
+//  plataforma (research.md §10), um parâmetro de produto sem fonte no catálogo.
+//
+
+import Foundation
+
+enum PaymentDispatchKind: String, Codable, Hashable {
+    case mobileSequential = "MOBILE_SEQUENTIAL"
+    case pittecAutoSequential = "PITTEC_AUTO_SEQUENTIAL"
+}
+
+enum PaymentMethodKind: String, Codable, Hashable {
+    case pix = "PIX"
+    case savedCard = "SAVED_CARD"
+}
+
+/// Espelha `payments.status` (`data-model.md`). `REFUND_PENDING` é transitório: o backend grava
+/// assim que um pagamento aprovado perde a solicitação associada (cancelamento pré-conclusão ou
+/// busca PitTec exaurida); o app chama `mp-refund-payment` a partir daí.
+enum PaymentStatus: String, Decodable, Hashable {
+    case pending = "PENDING"
+    case approved = "APPROVED"
+    case rejected = "REJECTED"
+    case expired = "EXPIRED"
+    case cancelled = "CANCELLED"
+    case refundPending = "REFUND_PENDING"
+    case refunded = "REFUNDED"
+    case refundFailed = "REFUND_FAILED"
+
+    var isRefundOutcome: Bool {
+        switch self {
+        case .refundPending, .refunded, .refundFailed: true
+        default: false
+        }
+    }
+}
+
+/// Tarifas que não vêm do catálogo real (ver nota acima).
+enum PaymentPricing {
+    /// Tarifa fixa única de plataforma cobrada pelo PitTec (research.md §10) — parâmetro de produto,
+    /// não calculado a partir de distância/coordenadas. Ajustável aqui sem qualquer migration.
+    static let pittecPlatformFee: Decimal = 20
+}
+
+struct PaymentPixDetails: Decodable, Equatable {
+    let qrCode: String
+    let qrCodeBase64: String
+    let expiresAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case qrCode = "qr_code"
+        case qrCodeBase64 = "qr_code_base64"
+        case expiresAt = "expires_at"
+    }
+}
+
+/// Resposta de `mp-create-payment` (`contracts/mercadopago-edge-functions.md`).
+struct PaymentCreationResult: Decodable, Equatable {
+    let paymentID: UUID
+    let status: PaymentStatus
+    let pix: PaymentPixDetails?
+
+    enum CodingKeys: String, CodingKey {
+        case paymentID = "payment_id"
+        case status
+        case pix
+    }
+}
+
+enum PaymentFailureReason: Equatable {
+    case offline
+    case timeout
+    case sessionExpired
+    /// `mp-create-payment` → `422 PAYER_DOCUMENT_REQUIRED` — Pix exige CPF já cadastrado no perfil.
+    case payerDocumentRequired
+    /// `mp-create-payment`/`mp-save-card` → `422 CARD_REJECTED`.
+    case cardRejected
+    case cardNotFound
+    case notFound
+    case serviceUnavailable
+    case unknown
+}
