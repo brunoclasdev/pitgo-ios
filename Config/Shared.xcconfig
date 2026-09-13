@@ -1,0 +1,38 @@
+//
+//  Shared.xcconfig
+//  pitgo
+//
+//  xcconfig base do projeto (rastreado). Inclui Secrets.xcconfig (local, não rastreado — ver
+//  .gitignore) quando existir; o `?` evita falha em um clone novo sem o arquivo. Ausência de
+//  qualquer um dos dois valores abaixo é tratada como valor ausente pelo Run Script Build Phase
+//  (contracts/supabase-configuration.md) — não há fallback silencioso.
+//
+//  IMPORTANTE: em .xcconfig, atribuições posteriores sobrescrevem as anteriores para a mesma
+//  chave, na ordem em que o arquivo é processado (um `#include` insere o conteúdo exatamente no
+//  ponto onde aparece). Por isso os defaults vazios abaixo vêm ANTES do `#include?` — assim, se
+//  Secrets.xcconfig existir e definir os valores, eles prevalecem; se não existir, os defaults
+//  vazios permanecem e o Run Script falha corretamente por ausência.
+//
+supabaseUrl =
+supabaseKey =
+
+//  `mapStyleUrl` (009): Style JSON do MapLibre Native — nenhuma chave de SDK de mapa proprietário
+//  (FR-036). Tem um default público de avaliação (não é infraestrutura de produção — ver
+//  research.md §7); um provedor de tiles gerenciado real deve sobrescrever via Secrets.xcconfig.
+mapStyleUrl = https:/$()/demotiles.maplibre.org/style.json
+
+//  `mapStyleProviderName`/`mapStyleAttribution`/`mapStyleAttributionUrl` (010): identificação e
+//  crédito do provedor de tiles exibidos na `MapAttributionView` — defaults verdadeiros para o
+//  estilo de avaliação acima (não fabricados); um provedor real deve sobrescrever os três via
+//  Secrets.xcconfig junto com `mapStyleUrl`.
+mapStyleProviderName = MapLibre (estilo de avaliação)
+mapStyleAttribution = © OpenStreetMap contributors
+mapStyleAttributionUrl = https:/$()/www.openstreetmap.org/copyright
+
+//  `mercadoPagoPublicKey` (018): Public Key do Mercado Pago — não sensível (só o Access Token, que
+//  nunca chega ao app, exige sigilo). Sem default de avaliação como o mapa: uma Public Key falsa
+//  falharia de forma confusa dentro do SDK nativo, então o app trata a ausência como "formas de
+//  pagamento por cartão indisponíveis" em vez de simular um valor (ver ManagedMercadoPagoConfiguration).
+mercadoPagoPublicKey =
+
+#include? "Secrets.xcconfig"
