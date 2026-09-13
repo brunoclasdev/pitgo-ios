@@ -19,6 +19,16 @@
 //  fallback de estimativa direta (FR-023, já exigido pelo próprio spec para quando a rota não está
 //  disponível) é, portanto, o único caminho exercitável — implementado como tal, não como exceção.
 //
+//  ACHADO ADICIONAL (verificado em device físico real): `listNearby`/`startDispatch` enviavam
+//  `fix.timestamp` (quando o CoreLocation capturou a posição) como `p_captured_at`. As RPCs
+//  rejeitam (`22023 INVALID_LOCATION`) captured_at com mais de 30s de idade — em device físico,
+//  só `requestOneShotFix(timeout: 15)` já consome boa parte desse orçamento; somado à latência real
+//  de rede até o Postgres, o total observado passou de 37s. Corrigido enviando `Date()` capturado no
+//  momento do envio da RPC, não o timestamp original do GPS — `list_nearby_pittecs` é `stable`
+//  (somente leitura) e usa `p_captured_at` só para esse gate de frescor, não para ordenação ou
+//  persistência, então isso não muda o contrato da RPC, só evita contar a latência do próprio
+//  cliente contra o orçamento do servidor.
+//
 
 import Foundation
 import Supabase
@@ -79,7 +89,8 @@ final class PitTecRepository {
                     p_latitude: fix.latitude,
                     p_longitude: fix.longitude,
                     p_accuracy_meters: fix.horizontalAccuracy,
-                    p_captured_at: fix.timestamp,
+                    // `Date()` no envio, não `fix.timestamp` — ver ACHADO acima.
+                    p_captured_at: Date(),
                     p_limit: limit
                 ))
                 .execute()
@@ -105,7 +116,9 @@ final class PitTecRepository {
             p_latitude: fix.latitude,
             p_longitude: fix.longitude,
             p_accuracy_meters: fix.horizontalAccuracy,
-            p_captured_at: fix.timestamp
+            // `Date()` no envio, não `fix.timestamp` — ver ACHADO acima: em device físico o tempo
+            // entre a captura do GPS e a chegada da RPC no servidor passa dos 30s tolerados.
+            p_captured_at: Date()
         ))
     }
 
