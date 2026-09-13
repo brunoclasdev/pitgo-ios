@@ -122,7 +122,14 @@ final class MobileDispatchRepository {
             p_latitude: fix.latitude,
             p_longitude: fix.longitude,
             p_accuracy_m: fix.horizontalAccuracy,
-            p_captured_at: fix.timestamp,
+            // `Date()` no envio, não `fix.timestamp` — mesmo achado de `PitTecRepository.swift`: o
+            // servidor rejeita/ignora silenciosamente (`IGNORED`) um `captured_at` com mais de 30s
+            // (contracts/mobile-dispatch-rpcs.md), e o timestamp original do GPS já consome parte
+            // desse orçamento antes mesmo de a requisição sair do dispositivo. Sem isso, o provider
+            // parece "publicando" no Dashboard (`.ignored` só faz `break` em `ProviderDiscoveryTracker`)
+            // enquanto sua posição nunca é de fato aceita, e ele some do `list_nearby_pittecs` do
+            // cliente sem nenhum erro visível.
+            p_captured_at: Date(),
             p_tracker_instance_id: trackerInstanceID,
             p_tracker_sequence: sequence
         )

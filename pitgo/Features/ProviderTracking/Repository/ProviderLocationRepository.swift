@@ -38,7 +38,11 @@ final class ProviderLocationRepository {
             p_latitude: Decimal(fix.latitude),
             p_longitude: Decimal(fix.longitude),
             p_accuracy_m: Decimal(fix.horizontalAccuracy),
-            p_captured_at: fix.timestamp,
+            // `Date()` no envio, não `fix.timestamp` — mesmo achado de `PitTecRepository.swift`/
+            // `MobileDispatchRepository.publishDiscoveryLocation`: o timestamp original do GPS já
+            // consome parte do orçamento de frescor do servidor antes mesmo de a requisição sair do
+            // dispositivo, arriscando `ignoredOlder` silencioso no tracking pós-aceite.
+            p_captured_at: Date(),
             p_tracker_instance_id: trackerInstanceID,
             p_tracker_sequence: sequence
         )
