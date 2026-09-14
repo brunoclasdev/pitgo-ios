@@ -30,6 +30,13 @@ final class PitTecClientViewModel {
     private var pendingAction: PendingDispatchAction?
     private var lastConfirmedSnapshot: PitTecDispatchSnapshot?
     private var isStarted = false
+    /// Reproduzido em device físico real: o cliente ficou preso em "Procurando PitTec" depois de o
+    /// provider aceitar — o broadcast do canal Realtime não chegou (ou chegou e foi perdido) e não
+    /// havia nenhum fallback, ao contrário do checkout de pagamento (`observeApproval`). Sem isso, a
+    /// confirmação do orçamento expira sozinha em 2 minutos (regra do backend) sem o cliente nunca
+    /// ter visto o card. Mesmo padrão de poll de segurança já usado em `PaymentCheckoutViewModel`.
+    private var pollTask: Task<Void, Never>?
+    private let pollInterval: TimeInterval = 5
 
     init(
         serviceID: UUID,
@@ -54,6 +61,7 @@ final class PitTecClientViewModel {
                 await repository.subscribeToSearch(searchID: snapshot.searchID) { [weak self] in
                     Task { @MainActor in self?.refresh() }
                 }
+                startPolling()
             default:
                 await loadDiscovery()
             }
@@ -61,7 +69,25 @@ final class PitTecClientViewModel {
     }
 
     func stop() {
+        stopPolling()
         repository.disconnectAll()
+    }
+
+    private func startPolling() {
+        guard pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(self.pollInterval * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                self.refresh()
+            }
+        }
+    }
+
+    private func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
     }
 
     func retry() {
@@ -118,6 +144,7 @@ final class PitTecClientViewModel {
                 await repository.subscribeToSearch(searchID: snapshot.searchID) { [weak self] in
                     Task { @MainActor in self?.refresh() }
                 }
+                startPolling()
             }
         }
     }
@@ -203,6 +230,7 @@ final class PitTecClientViewModel {
         case .noActiveFlow:
             state = .restoring
             isStarted = false
+            stopPolling()
         case let .failure(reason):
             applyFailure(reason)
         }
@@ -215,6 +243,7 @@ final class PitTecClientViewModel {
         if snapshot.status.isTerminal {
             state = .terminal(snapshot)
             routeContext = nil
+            stopPolling()
             repository.disconnectAll()
             if snapshot.status == .cancelled || snapshot.status == .exhausted {
                 checkRefund(searchID: snapshot.searchID)
@@ -241,6 +270,7 @@ final class PitTecClientViewModel {
     private func applyFailure(_ reason: PitTecFailureReason) {
         if reason == .sessionExpired {
             state = .sessionExpired
+            stopPolling()
             repository.disconnectAll()
             return
         }

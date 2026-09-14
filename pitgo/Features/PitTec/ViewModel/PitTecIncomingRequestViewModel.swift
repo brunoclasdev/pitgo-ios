@@ -23,6 +23,11 @@ final class PitTecIncomingRequestViewModel {
     private var pendingAction: PendingDispatchAction?
     private var isStarted = false
     private var countdownTask: Task<Void, Never>?
+    /// Mesmo fallback de segurança de `PitTecClientViewModel` (reproduzido em device físico real: o
+    /// cliente ficou preso esperando um broadcast que nunca chegou) — o lado provider depende só de
+    /// `subscribeToProvider` sem nenhum poll de segurança.
+    private var pollTask: Task<Void, Never>?
+    private let pollInterval: TimeInterval = 5
 
     init(providerID: UUID, repository: PitTecRepository) {
         self.providerID = providerID
@@ -38,12 +43,31 @@ final class PitTecIncomingRequestViewModel {
             await repository.subscribeToProvider(providerID: providerID) { [weak self] in
                 Task { @MainActor in self?.refresh() }
             }
+            startPolling()
         }
     }
 
     func stop() {
         stopCountdown()
+        stopPolling()
         repository.disconnectAll()
+    }
+
+    private func startPolling() {
+        guard pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(self.pollInterval * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                self.refresh()
+            }
+        }
+    }
+
+    private func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
     }
 
     func retry() {
@@ -118,6 +142,7 @@ final class PitTecIncomingRequestViewModel {
         case let .failure(reason):
             if reason == .sessionExpired {
                 state = .sessionExpired
+                stopPolling()
                 repository.disconnectAll()
             } else {
                 state = .failure
