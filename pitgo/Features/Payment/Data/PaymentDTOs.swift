@@ -20,6 +20,10 @@ struct CreatePaymentRequestBody: Encodable {
     let method: String
     let saved_card_id: UUID?
     let card_security_code_token: String?
+    /// `021`/migration `20260913010000` — obrigatórios só para `PITTEC_AUTO_SEQUENTIAL`; a Edge
+    /// Function resolve o valor real a partir do atendimento, ignorando `amount` nesse caso.
+    let appointment_id: UUID?
+    let quote_version: Int64?
 }
 
 /// Corpo de erro de qualquer uma das cinco Edge Functions — sempre `{ "code": "..." }` (ver

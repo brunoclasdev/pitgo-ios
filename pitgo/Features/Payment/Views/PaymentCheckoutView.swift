@@ -28,6 +28,7 @@ struct PaymentCheckoutView: View {
         catalogRepository: ServiceCatalogRepository,
         paymentRepository: PaymentRepository,
         savedCardRepository: SavedCardRepository,
+        pittecContext: PitTecPaymentContext? = nil,
         onApproved: @escaping (UUID) -> Void,
         onSessionExpired: @escaping () -> Void
     ) {
@@ -36,7 +37,8 @@ struct PaymentCheckoutView: View {
             dispatchKind: dispatchKind,
             catalogRepository: catalogRepository,
             paymentRepository: paymentRepository,
-            savedCardRepository: savedCardRepository
+            savedCardRepository: savedCardRepository,
+            pittecContext: pittecContext
         ))
         self.onApproved = onApproved
         self.onSessionExpired = onSessionExpired

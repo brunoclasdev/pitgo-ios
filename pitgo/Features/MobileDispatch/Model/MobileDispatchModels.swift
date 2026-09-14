@@ -17,6 +17,12 @@ enum ServiceSearchStatus: String, Decodable, Hashable {
     case searching = "SEARCHING"
     case optionFound = "OPTION_FOUND"
     case awaitingProvider = "AWAITING_PROVIDER"
+    /// `021`/migration `20260913010000` — exclusivo do PitTec: o prestador aceitou, o cliente ainda
+    /// precisa confirmar o orçamento (`quoted_price`) antes de qualquer pagamento ou acompanhamento.
+    case awaitingClientConfirmation = "AWAITING_CLIENT_CONFIRMATION"
+    /// `021` — exclusivo do PitTec: cliente confirmou o orçamento, aguardando o pagamento em si
+    /// (que só então dispara o avanço automático para `ACCEPTED` via trigger no backend).
+    case awaitingPayment = "AWAITING_PAYMENT"
     case accepted = "ACCEPTED"
     case inProgress = "IN_PROGRESS"
     case cancelled = "CANCELLED"
@@ -34,6 +40,10 @@ enum ServiceSearchStatus: String, Decodable, Hashable {
 
 enum AppointmentStatus: String, Decodable, Hashable {
     case pending = "PENDING"
+    /// `021`/migration `20260913010000` — exclusivo do PitTec, ver `ServiceSearchStatus`.
+    case awaitingClientConfirmation = "AWAITING_CLIENT_CONFIRMATION"
+    /// `021` — exclusivo do PitTec, ver `ServiceSearchStatus`.
+    case awaitingPayment = "AWAITING_PAYMENT"
     case accepted = "ACCEPTED"
     case inProgress = "IN_PROGRESS"
     case providerRejected = "PROVIDER_REJECTED"
@@ -135,6 +145,9 @@ struct MobileDispatchSnapshot: Decodable, Equatable {
 
 enum DispatchActionKind: Equatable {
     case next, request, cancel(reason: String), accept, decline, start, complete
+    /// `021` — confirmação de valor pós-aceite, exclusiva do PitTec (o guincho móvel não tem essa
+    /// etapa); vive aqui pelo mesmo motivo de `cancel`/`accept`/`decline` já serem compartilhados.
+    case confirm
 }
 
 /// Bloqueia toques concorrentes antes mesmo de criar a `Task` — a mesma ação nunca dispara duas

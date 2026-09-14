@@ -138,6 +138,14 @@ final class PitTecIncomingRequestViewModel {
             state = .incoming(snapshot, pendingAction: pendingAction)
             routeContext = nil
             if appointment.responseDeadline != nil { startCountdownIfNeeded() } else { stopCountdown() }
+        case .awaitingClientConfirmation, .awaitingPayment:
+            // `021`/migration `20260913010000`: aceito, mas o cliente ainda não confirmou o
+            // orçamento (ou já confirmou e falta só pagar) — sem posição exata ainda
+            // (`client_current_locations` só existe a partir de `ACCEPTED`, quando o pagamento é
+            // aprovado), então nenhum `routeContext` é buscado aqui.
+            state = .reserved(snapshot, pendingAction: pendingAction)
+            routeContext = nil
+            stopCountdown()
         case .accepted, .inProgress:
             state = .reserved(snapshot, pendingAction: pendingAction)
             refreshRouteContext(appointmentID: appointment.appointmentID)

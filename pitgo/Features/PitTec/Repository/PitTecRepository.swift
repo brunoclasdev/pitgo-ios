@@ -152,6 +152,27 @@ final class PitTecRepository {
         return await call("cancel_mobile_appointment", params: Params(p_appointment_id: appointmentID, p_reason: reason, p_expected_revision: expectedRevision))
     }
 
+    /// `021`/migration `20260913010000` — confirma ou recusa o orçamento ofertado ao aceitar
+    /// (`AWAITING_CLIENT_CONFIRMATION`). Confirmar avança para `AWAITING_PAYMENT` (o pagamento em si
+    /// é feito à parte, via `PaymentRepository`); recusar cancela o atendimento com o motivo
+    /// `QUOTE_DECLINED` já tratado pelo backend, sem precisar de `cancelAppointment`.
+    func respondToQuote(searchID: UUID, appointmentID: UUID, quoteVersion: Int64, accept: Bool, expectedRevision: Int64) async -> PitTecOperationResult {
+        struct Params: Encodable {
+            let p_request_id: UUID
+            let p_appointment_id: UUID
+            let p_quote_version: Int64
+            let p_accept: Bool
+            let p_expected_revision: Int64
+        }
+        return await call("respond_to_pittec_quote", params: Params(
+            p_request_id: searchID,
+            p_appointment_id: appointmentID,
+            p_quote_version: quoteVersion,
+            p_accept: accept,
+            p_expected_revision: expectedRevision
+        ))
+    }
+
     // MARK: - Ciclo do provider (aceite/recusa/cancelamento reaproveitam `013`)
 
     /// `respond_to_mobile_dispatch`/`complete_mobile_appointment` (`013`) já são compartilhadas pelo
@@ -282,10 +303,17 @@ final class PitTecRepository {
 
     private func interpret(_ result: PitTecFlowResult) -> PitTecOperationResult {
         switch result.outcome {
-        case .started, .activeDispatchExists, .active, .snapshot, .cancelled, .revisionConflict, .invalidTransition, .arrived:
+        case .started, .activeDispatchExists, .active, .snapshot, .cancelled, .revisionConflict,
+             .invalidTransition, .arrived, .confirmed, .confirmationExpired:
             guard let snapshot = result.snapshot else { return .failure(.contract) }
             return .snapshot(snapshot)
-        case .none, .offerExpired, .declined:
+        case .declined:
+            // `respond_to_pittec_quote` (cliente recusa o orçamento) retorna snapshot; já
+            // `respond_to_mobile_dispatch` (provider recusa a chamada) não retorna — mesmo literal,
+            // dois contextos, distinguidos pela presença do snapshot.
+            if let snapshot = result.snapshot { return .snapshot(snapshot) }
+            return .noActiveFlow
+        case .none, .offerExpired, .notFound:
             return .noActiveFlow
         }
     }

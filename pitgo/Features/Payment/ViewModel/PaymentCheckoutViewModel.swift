@@ -35,14 +35,20 @@ enum PaymentCheckoutUiState: Equatable {
 final class PaymentCheckoutViewModel {
     private(set) var state: PaymentCheckoutUiState = .loadingAmount
 
-    /// Reaproveitado pelo chamador como `search_id`/`p_request_id` da RPC de despacho após `.approved`.
-    let requestID = UUID()
+    /// Reaproveitado pelo chamador como `search_id`/`p_request_id` da RPC de despacho após
+    /// `.approved` — auto-gerado para `MOBILE_SEQUENTIAL` (pagamento antes da busca, inalterado);
+    /// para `PITTEC_AUTO_SEQUENTIAL` (`021`) é o `search_id` já existente do atendimento aceito,
+    /// vindo de `pittecContext`.
+    let requestID: UUID
 
     private let serviceID: UUID
     let dispatchKind: PaymentDispatchKind
     private let catalogRepository: ServiceCatalogRepository
     private let paymentRepository: PaymentRepository
     private let savedCardRepository: SavedCardRepository
+    /// `021` — presente só para `PITTEC_AUTO_SEQUENTIAL`; carrega o valor já conhecido do
+    /// orçamento, pulando o cálculo de `amount` que `loadAmountAndCards()` faz para os demais casos.
+    private let pittecContext: PitTecPaymentContext?
 
     private var amount: Decimal = 0
     private var savedCards: [SavedCard] = []
@@ -53,13 +59,16 @@ final class PaymentCheckoutViewModel {
         dispatchKind: PaymentDispatchKind,
         catalogRepository: ServiceCatalogRepository,
         paymentRepository: PaymentRepository,
-        savedCardRepository: SavedCardRepository
+        savedCardRepository: SavedCardRepository,
+        pittecContext: PitTecPaymentContext? = nil
     ) {
         self.serviceID = serviceID
         self.dispatchKind = dispatchKind
         self.catalogRepository = catalogRepository
         self.paymentRepository = paymentRepository
         self.savedCardRepository = savedCardRepository
+        self.pittecContext = pittecContext
+        self.requestID = pittecContext?.searchID ?? UUID()
     }
 
     func start() {
@@ -78,9 +87,13 @@ final class PaymentCheckoutViewModel {
     private func loadAmountAndCards() async {
         switch dispatchKind {
         case .pittecAutoSequential:
-            // Tarifa fixa de plataforma — nunca vem do catálogo (sempre 0 para PitTec, ver nota em
-            // `PaymentModels.swift`).
-            amount = PaymentPricing.pittecPlatformFee
+            // `021`: valor já conhecido do orçamento confirmado — nunca mais uma tarifa fixa nem
+            // vindo do catálogo (sempre 0 para PitTec, ver nota em `PaymentModels.swift`).
+            guard let pittecContext else {
+                state = .invalidService
+                return
+            }
+            amount = pittecContext.amount
         case .mobileSequential:
             guard
                 case let .content(listings) = await catalogRepository.fetchHomeServices(),
@@ -130,7 +143,9 @@ final class PaymentCheckoutViewModel {
                 dispatchKind: self.dispatchKind,
                 amount: self.amount,
                 method: method,
-                savedCardID: savedCardID
+                savedCardID: savedCardID,
+                appointmentID: self.pittecContext?.appointmentID,
+                quoteVersion: self.pittecContext?.quoteVersion
             ) {
             case let .created(result):
                 self.apply(result)

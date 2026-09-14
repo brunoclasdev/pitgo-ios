@@ -46,7 +46,9 @@ final class PaymentRepository {
         amount: Decimal,
         method: PaymentMethodKind,
         savedCardID: UUID? = nil,
-        cardSecurityCodeToken: String? = nil
+        cardSecurityCodeToken: String? = nil,
+        appointmentID: UUID? = nil,
+        quoteVersion: Int64? = nil
     ) async -> PaymentCreationOutcome {
         let body = CreatePaymentRequestBody(
             request_id: requestID,
@@ -54,7 +56,9 @@ final class PaymentRepository {
             amount: amount,
             method: method.rawValue,
             saved_card_id: savedCardID,
-            card_security_code_token: cardSecurityCodeToken
+            card_security_code_token: cardSecurityCodeToken,
+            appointment_id: appointmentID,
+            quote_version: quoteVersion
         )
         do {
             // `expires_at` vem do próprio Mercado Pago via `.toISOString()` do lado da Edge Function

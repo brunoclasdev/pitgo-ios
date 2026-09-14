@@ -204,6 +204,11 @@ struct ClientMobileDispatchView: View {
             optionFoundState(snapshot, pendingAction: pendingAction)
         case .awaitingProvider:
             awaitingProviderState(snapshot, pendingAction: pendingAction)
+        case .awaitingClientConfirmation, .awaitingPayment:
+            // `021`/migration `20260913010000` — exclusivos do PitTec (`PITTEC_AUTO_SEQUENTIAL`);
+            // o guincho móvel nunca alcança esses status, mas o enum é compartilhado. Tratado como
+            // "aguardando prestador" por segurança, nunca travando a tela.
+            awaitingProviderState(snapshot, pendingAction: pendingAction)
         case .accepted, .inProgress:
             acceptedState(snapshot, pendingAction: pendingAction)
         case .cancelled, .completed, .exhausted:

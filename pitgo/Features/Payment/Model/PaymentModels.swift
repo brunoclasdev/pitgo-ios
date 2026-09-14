@@ -20,11 +20,9 @@
 //
 //  ACHADO ADICIONAL: `list_home_services().minimum_price` é sempre 0 para
 //  PITTEC_AUTO_SEQUENTIAL (a oferta do prestador PitTec é `is_free = true`/preço zero por desenho,
-//  `016`) — não pode ser reaproveitado como valor cobrado do cliente. O Android
-//  (`PaymentCheckoutViewModel.kt`) reaproveita `service.minimumPrice` para os dois `dispatchKind`
-//  indistintamente, o que resultaria em `amount = 0`/`InvalidService` contra os dados reais de
-//  PitTec hoje — não replicado aqui. `PaymentPricing.pittecPlatformFee` é a tarifa fixa de
-//  plataforma (research.md §10), um parâmetro de produto sem fonte no catálogo.
+//  `016`) — não pode ser reaproveitado como valor cobrado do cliente. Desde `021`/migration
+//  `20260913010000`, o valor cobrado do PitTec vem do orçamento (`appointment.quotedPrice`,
+//  `PitTecPaymentContext`), nunca do catálogo nem de uma tarifa fixa do app.
 //
 
 import Foundation
@@ -60,11 +58,17 @@ enum PaymentStatus: String, Decodable, Hashable {
     }
 }
 
-/// Tarifas que não vêm do catálogo real (ver nota acima).
-enum PaymentPricing {
-    /// Tarifa fixa única de plataforma cobrada pelo PitTec (research.md §10) — parâmetro de produto,
-    /// não calculado a partir de distância/coordenadas. Ajustável aqui sem qualquer migration.
-    static let pittecPlatformFee: Decimal = 20
+/// `021`/migration `20260913010000` — contexto do checkout de um atendimento PitTec já aceito e
+/// confirmado (`AWAITING_PAYMENT`). Substitui o fluxo antigo de tarifa fixa cobrada antes da busca:
+/// o valor vem do orçamento (`appointment.quotedPrice`), e o pagamento é amarrado ao atendimento e
+/// à versão do orçamento (`mp-create-payment` valida os dois server-side).
+struct PitTecPaymentContext: Equatable, Identifiable {
+    let searchID: UUID
+    let appointmentID: UUID
+    let quoteVersion: Int64
+    let amount: Decimal
+
+    var id: UUID { appointmentID }
 }
 
 struct PaymentPixDetails: Decodable, Equatable {

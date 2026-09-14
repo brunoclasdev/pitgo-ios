@@ -124,6 +124,9 @@
     "Abrir Ajustes" : {
 
     },
+    "aceitou seu chamado." : {
+
+    },
     "Acompanhar atendimento" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -180,6 +183,9 @@
       }
     },
     "Agora saia desta conta e entre ou cadastre-se com a conta empresarial que deve receber a empresa (um e-mail diferente do seu e-mail de cliente)." : {
+
+    },
+    "Aguardando confirmação do cliente" : {
 
     },
     "Aguardando localização do prestador…" : {
@@ -706,6 +712,9 @@
     "Confirmando pagamento…" : {
 
     },
+    "Confirmar" : {
+
+    },
     "Confirmar cancelamento" : {
 
     },
@@ -1180,6 +1189,9 @@
           }
         }
       }
+    },
+    "Esse valor já foi pago no checkout — confirme para seguir com o atendimento." : {
+
     },
     "Esta placa não está disponível." : {
       "extractionState" : "manual",
@@ -2107,6 +2119,9 @@
     "O cadastro é totalmente opcional — Pix continua disponível sem ele." : {
 
     },
+    "O cliente está revisando o valor do atendimento." : {
+
+    },
     "O desafio de migração expirou ou não é mais válido. Reinicie a migração a partir da conta de cliente." : {
 
     },
@@ -2484,6 +2499,9 @@
           }
         }
       }
+    },
+    "Recusar" : {
+
     },
     "Remover cartão" : {
 
@@ -2912,6 +2930,9 @@
 
     },
     "Valor definido pela plataforma — sem cadastro de preço." : {
+
+    },
+    "Valor do atendimento" : {
 
     },
     "Valor estimado" : {

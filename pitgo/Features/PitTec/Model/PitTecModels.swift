@@ -18,6 +18,13 @@ enum PitTecOfferAction: String, Decodable, Hashable {
     case decline = "DECLINE"
     case arrive = "ARRIVE"
     case complete = "COMPLETE"
+    /// `021`/migration `20260913010000` — ações do cliente sobre o orçamento (`respond_to_pittec_quote`).
+    case confirmQuote = "CONFIRM_QUOTE"
+    case declineQuote = "DECLINE_QUOTE"
+    /// Cliente pode abrir o checkout (`AWAITING_PAYMENT`) ou o mapa de acompanhamento
+    /// (`ACCEPTED`/`IN_PROGRESS`) — ambos apenas sinalizam qual tela mostrar, sem RPC própria.
+    case openPayment = "OPEN_PAYMENT"
+    case openTracking = "OPEN_TRACKING"
 }
 
 /// Marcador aproximado de um PitTec disponível antes do aceite — grade de ~500m, `markerID` opaco e
@@ -42,10 +49,33 @@ struct PitTecMarker: Decodable, Identifiable, Equatable {
 struct PitTecOffer: Decodable, Equatable {
     let approximateDistanceMeters: Double
     let region: String
+    /// `021` — valor que o provider vai ofertar ao aceitar; o cliente confirma esse mesmo valor
+    /// depois (`quoteVersion` amarra a confirmação a esta oferta específica).
+    let quotedPrice: Decimal
+    let quoteVersion: Int64
 
     enum CodingKeys: String, CodingKey {
         case approximateDistanceMeters = "approximate_distance_meters"
         case region
+        case quotedPrice = "quoted_price"
+        case quoteVersion = "quote_version"
+    }
+}
+
+/// `021`/migration `20260913010000` — orçamento do atendimento aceito, visível a ambos os lados a
+/// partir do momento em que o provider aceita (`appointment.status <> PENDING`). `clientConfirmedAt`
+/// só é preenchido depois que o cliente confirma via `respond_to_pittec_quote`.
+struct PitTecQuote: Decodable, Equatable {
+    let amount: Decimal
+    let currency: String
+    let version: Int64
+    let clientConfirmationDeadline: Date?
+    let clientConfirmedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case amount, currency, version
+        case clientConfirmationDeadline = "client_confirmation_deadline"
+        case clientConfirmedAt = "client_confirmed_at"
     }
 }
 
@@ -69,6 +99,17 @@ struct PitTecAppointment: Decodable, Equatable {
     let acceptedAt: Date?
     let arrivedAt: Date?
     let cancelledBy: CancelledBy?
+    /// `021`/migration `20260913010000` — preço ofertado pelo provider ao aceitar; base de
+    /// `respond_to_pittec_quote` e do pagamento em `AWAITING_PAYMENT`.
+    let quotedPrice: Decimal
+    let isFree: Bool
+    let quoteVersion: Int64
+    let clientConfirmationDeadline: Date?
+    let clientConfirmedAt: Date?
+    let clientConfirmedQuoteVersion: Int64?
+    /// Espelha `quotedPrice`/`quoteVersion`/`clientConfirmationDeadline`/`clientConfirmedAt` num
+    /// único objeto — mantido porque é o formato que a View usa para montar o card de confirmação.
+    let quote: PitTecQuote?
 
     enum CodingKeys: String, CodingKey {
         case appointmentID = "appointment_id"
@@ -78,6 +119,13 @@ struct PitTecAppointment: Decodable, Equatable {
         case acceptedAt = "accepted_at"
         case arrivedAt = "arrived_at"
         case cancelledBy = "cancelled_by"
+        case quotedPrice = "quoted_price"
+        case isFree = "is_free"
+        case quoteVersion = "quote_version"
+        case clientConfirmationDeadline = "client_confirmation_deadline"
+        case clientConfirmedAt = "client_confirmed_at"
+        case clientConfirmedQuoteVersion = "client_confirmed_quote_version"
+        case quote
     }
 }
 
@@ -145,6 +193,13 @@ enum PitTecOutcome: String, Decodable {
     case offerExpired = "OFFER_EXPIRED"
     case declined = "DECLINED"
     case snapshot = "SNAPSHOT"
+    /// `021`/migration `20260913010000` — retornados por `respond_to_pittec_quote`. `DECLINED`
+    /// também é retornado (sem `snapshot`) por `respond_to_mobile_dispatch` quando o PROVIDER recusa
+    /// a chamada — o mesmo literal, dois contextos; `interpret(_:)` distingue pela presença do
+    /// snapshot, não pelo nome do outcome.
+    case confirmed = "CONFIRMED"
+    case confirmationExpired = "CONFIRMATION_EXPIRED"
+    case notFound = "NOT_FOUND"
 }
 
 struct PitTecFlowResult: Decodable {

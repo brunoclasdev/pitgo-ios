@@ -89,7 +89,14 @@ struct PitTecIncomingRequestView: View {
         case let .incoming(snapshot, pendingAction):
             incomingState(snapshot, pendingAction: pendingAction)
         case let .reserved(snapshot, pendingAction):
-            reservedState(snapshot, pendingAction: pendingAction)
+            // `021`/migration `20260913010000`: nenhum mapa de acompanhamento antes de `ACCEPTED`
+            // (cliente ainda revisando o orçamento ou pagando).
+            switch snapshot.appointment?.status {
+            case .awaitingClientConfirmation, .awaitingPayment:
+                awaitingConfirmationState(snapshot)
+            default:
+                reservedState(snapshot, pendingAction: pendingAction)
+            }
         case .sessionExpired:
             Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failure:
@@ -111,6 +118,8 @@ struct PitTecIncomingRequestView: View {
                         Text(formattedDistance(offer.approximateDistanceMeters))
                             .font(PitGoTypography.body)
                             .foregroundStyle(tokens.textSecondary)
+                        Text(formattedAmount(offer.quotedPrice))
+                            .font(PitGoTypography.sectionTitle)
                     }
                     if let deadline = snapshot.appointment?.responseDeadline {
                         Text(countdownText(deadline, now: viewModel.localNow))
@@ -147,6 +156,37 @@ struct PitTecIncomingRequestView: View {
         }
     }
 
+    /// `021`/migration `20260913010000`: tela de espera entre o aceite e `ACCEPTED` — sem ações,
+    /// sem mapa. Sai sozinha assim que o status muda pelo mesmo canal Realtime já usado
+    /// (`subscribeToProvider`), sem nenhum polling adicional.
+    private func awaitingConfirmationState(_ snapshot: PitTecDispatchSnapshot) -> some View {
+        VStack(spacing: 16) {
+            Spacer()
+            ProgressView()
+            Text(waitingTitle(for: snapshot.appointment?.status))
+                .font(PitGoTypography.sectionTitle)
+                .accessibilityAddTraits(.isHeader)
+            Text(waitingMessage(for: snapshot.appointment?.status))
+                .font(PitGoTypography.body)
+                .foregroundStyle(tokens.textSecondary)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.updatesFrequently)
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func waitingTitle(for status: AppointmentStatus?) -> String {
+        status == .awaitingPayment ? "Aguardando pagamento" : "Aguardando confirmação do cliente"
+    }
+
+    private func waitingMessage(for status: AppointmentStatus?) -> String {
+        status == .awaitingPayment
+            ? "O cliente já confirmou o orçamento — falta só o pagamento."
+            : "O cliente está revisando o valor do atendimento."
+    }
+
     private func reservedState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
         VStack(spacing: 0) {
             if let context = viewModel.routeContext {
@@ -154,6 +194,11 @@ struct PitTecIncomingRequestView: View {
                     annotations: [
                         PitGoMapAnnotationItem(id: "pittec", coordinate: CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude), title: "Você", symbolName: "wrench.and.screwdriver.fill"),
                         PitGoMapAnnotationItem(id: "client", coordinate: CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude), title: "Cliente"),
+                    ],
+                    // `021` FR-008: enquadra PitTec + cliente juntos, em vez de depender do zoom padrão.
+                    fitCoordinates: [
+                        CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
+                        CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude),
                     ],
                     routeLine: [
                         CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
@@ -248,5 +293,12 @@ struct PitTecIncomingRequestView: View {
 
     private func formattedDistance(_ meters: Double) -> String {
         meters >= 1000 ? String(format: "~%.0f km do cliente", meters / 1000) : String(format: "~%.0f m do cliente", meters)
+    }
+
+    private func formattedAmount(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "pt_BR")
+        return formatter.string(from: amount as NSDecimalNumber) ?? "R$ \(amount)"
     }
 }

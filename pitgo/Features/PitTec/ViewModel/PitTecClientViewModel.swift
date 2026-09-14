@@ -105,15 +105,14 @@ final class PitTecClientViewModel {
         }
     }
 
-    /// Chamar PitTec — usa a mesma posição já obtida para a descoberta, sem pedir um novo fix.
-    /// `requestID` vem do checkout de pagamento (`018`) já aprovado (`payments.request_id =
-    /// p_request_id`, guarda verificada nesta sessão em `start_pittec_dispatch` real) — a View
-    /// apresenta `PaymentCheckoutView` antes de chamar isto.
-    func callPitTec(requestID: UUID) {
+    /// `021`/migration `20260913010000` — busca começa sem nenhuma cobrança prévia (o pagamento só
+    /// acontece depois do cliente confirmar o orçamento, em `AWAITING_PAYMENT`); usa a mesma posição
+    /// já obtida para a descoberta, sem pedir um novo fix.
+    func callPitTec() {
         guard case .discovering = state, let fix = lastFix else { return }
         Task { [weak self] in
             guard let self else { return }
-            let result = await repository.startDispatch(requestID: requestID, serviceID: serviceID, fix: fix)
+            let result = await repository.startDispatch(requestID: UUID(), serviceID: serviceID, fix: fix)
             apply(result)
             if case let .snapshot(snapshot) = result {
                 await repository.subscribeToSearch(searchID: snapshot.searchID) { [weak self] in
@@ -146,6 +145,48 @@ final class PitTecClientViewModel {
             pendingAction = nil
             apply(result)
         }
+    }
+
+    /// `021`/migration `20260913010000` — confirma o orçamento ofertado (`AWAITING_CLIENT_
+    /// CONFIRMATION` → `AWAITING_PAYMENT`); o pagamento em si acontece à parte, quando a View abre
+    /// `PaymentCheckoutView` para o status `AWAITING_PAYMENT`.
+    func confirmQuote() {
+        respondToQuote(accept: true)
+    }
+
+    /// Recusar cancela o atendimento com o motivo `QUOTE_DECLINED` já tratado pelo próprio backend
+    /// — não reaproveita `cancel(reason:)`/`cancelAppointment`, que exigiria digitar um motivo.
+    func declineQuote() {
+        respondToQuote(accept: false)
+    }
+
+    private func respondToQuote(accept: Bool) {
+        guard let snapshot = currentSnapshot,
+              let appointment = snapshot.appointment,
+              appointment.status == .awaitingClientConfirmation,
+              pendingAction == nil else { return }
+        pendingAction = PendingDispatchAction(kind: accept ? .confirm : .cancel(reason: "QUOTE_DECLINED"), expectedRevision: appointment.revision)
+        state = .content(snapshot, pendingAction: pendingAction)
+        Task { [weak self] in
+            guard let self else { return }
+            let result = await repository.respondToQuote(
+                searchID: snapshot.searchID,
+                appointmentID: appointment.appointmentID,
+                quoteVersion: appointment.quoteVersion,
+                accept: accept,
+                expectedRevision: appointment.revision
+            )
+            pendingAction = nil
+            apply(result)
+        }
+    }
+
+    /// `021` — chamado pela View quando o checkout de pagamento fecha aprovado. O trigger no backend
+    /// já avança o atendimento para `ACCEPTED` sozinho (`reconcile_pittec_payment_change`); isto só
+    /// garante que o snapshot mais recente chegue mesmo se o broadcast do canal ainda não tiver
+    /// propagado no instante em que o sheet fecha.
+    func refreshAfterPayment() {
+        refresh()
     }
 
     private func refresh() {

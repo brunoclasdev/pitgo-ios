@@ -38,6 +38,11 @@ struct PitGoMapView: UIViewRepresentable {
     var centerCoordinate: CLLocationCoordinate2D?
     var zoomLevel: Double = 13
     var showsUserLocation: Bool = false
+    /// `021`: quando presente (≥2 coordenadas), enquadra todas juntas (`setVisibleCoordinates`) em
+    /// vez de centralizar num único ponto — usado pelo acompanhamento pós-confirmação do PitTec
+    /// para mostrar cliente + prestador simultaneamente. Tem prioridade sobre `centerCoordinate`
+    /// quando ambos são fornecidos.
+    var fitCoordinates: [CLLocationCoordinate2D]?
     var onAnnotationSelected: ((String) -> Void)?
     /// Reportado ao final de um gesto do usuário (pan/zoom) — usado pelo botão "Buscar nesta área".
     var onRegionChanged: ((CLLocationCoordinate2D) -> Void)?
@@ -50,7 +55,10 @@ struct PitGoMapView: UIViewRepresentable {
         let mapView = MLNMapView(frame: .zero, styleURL: ManagedMapStyleConfiguration.current.styleURL)
         mapView.delegate = context.coordinator
         mapView.showsUserLocation = showsUserLocation
-        if let centerCoordinate {
+        if let fitCoordinates, fitCoordinates.count >= 2 {
+            Self.fit(fitCoordinates, in: mapView, animated: false)
+            context.coordinator.lastFittedCoordinates = fitCoordinates
+        } else if let centerCoordinate {
             mapView.setCenter(centerCoordinate, zoomLevel: zoomLevel, animated: false)
             context.coordinator.lastCenteredCoordinate = centerCoordinate
         }
@@ -73,13 +81,29 @@ struct PitGoMapView: UIViewRepresentable {
         }
         mapView.addAnnotations(pointAnnotations)
 
-        if let centerCoordinate, centerCoordinate != context.coordinator.lastCenteredCoordinate {
+        if let fitCoordinates, fitCoordinates.count >= 2 {
+            if fitCoordinates != context.coordinator.lastFittedCoordinates {
+                Self.fit(fitCoordinates, in: mapView, animated: true)
+                context.coordinator.lastFittedCoordinates = fitCoordinates
+            }
+        } else if let centerCoordinate, centerCoordinate != context.coordinator.lastCenteredCoordinate {
             mapView.setCenter(centerCoordinate, zoomLevel: zoomLevel, animated: true)
             context.coordinator.lastCenteredCoordinate = centerCoordinate
         }
 
         context.coordinator.currentRouteLine = routeLine
         Self.applyRouteLine(routeLine, to: mapView.style)
+    }
+
+    /// `021`: enquadra todas as coordenadas dadas com um padding seguro — usado para mostrar
+    /// cliente + PitTec juntos, sem sobrescrever um pan/zoom manual em toda atualização (só refeito
+    /// quando `fitCoordinates` muda de fato, ver `updateUIView`).
+    private static func fit(_ coordinates: [CLLocationCoordinate2D], in mapView: MLNMapView, animated: Bool) {
+        let padding = UIEdgeInsets(top: 60, left: 48, bottom: 60, right: 48)
+        coordinates.withUnsafeBufferPointer { buffer in
+            guard let baseAddress = buffer.baseAddress else { return }
+            mapView.setVisibleCoordinates(baseAddress, count: UInt(buffer.count), edgePadding: padding, animated: animated)
+        }
     }
 
     fileprivate static func applyRouteLine(_ routeLine: [CLLocationCoordinate2D]?, to style: MLNStyle?) {
@@ -111,6 +135,9 @@ struct PitGoMapView: UIViewRepresentable {
         var onAnnotationSelected: ((String) -> Void)?
         var onRegionChanged: ((CLLocationCoordinate2D) -> Void)?
         var lastCenteredCoordinate: CLLocationCoordinate2D?
+        /// `021`: última lista enquadrada via `fitCoordinates`, para só reenquadrar quando ela muda
+        /// de fato (mesmo espírito de `lastCenteredCoordinate` para `centerCoordinate`).
+        var lastFittedCoordinates: [CLLocationCoordinate2D]?
         /// Reaplicado em `didFinishLoading` — cobre o caso de `routeLine` ter sido pedido antes de o
         /// estilo (assíncrono) terminar de carregar.
         var currentRouteLine: [CLLocationCoordinate2D]?

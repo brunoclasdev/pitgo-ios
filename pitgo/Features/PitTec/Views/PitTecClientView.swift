@@ -15,9 +15,10 @@ struct PitTecClientView: View {
     @Environment(\.pitGoTokens) private var tokens
     @State private var viewModel: PitTecClientViewModel
     @State private var showCancellationSheet = false
-    /// `018`: "Chamar PitTec" abre o checkout antes de `startDispatch` — `start_pittec_dispatch`
-    /// exige pagamento aprovado (guarda verificada nesta sessão contra o backend real).
-    @State private var showPaymentSheet = false
+    /// `021`/migration `20260913010000`: o checkout só abre DEPOIS que o cliente confirma o
+    /// orçamento (`AWAITING_PAYMENT`), nunca antes de `startDispatch` — a busca em si não exige
+    /// mais pagamento prévio (ao contrário do que `018` originalmente implementou).
+    @State private var pittecPaymentContext: PitTecPaymentContext?
 
     let serviceID: UUID
     let catalogRepository: ServiceCatalogRepository
@@ -76,16 +77,17 @@ struct PitTecClientView: View {
                 }
                 .interactiveDismissDisabled(isPendingCancel)
             }
-            .sheet(isPresented: $showPaymentSheet) {
+            .sheet(item: $pittecPaymentContext) { context in
                 PaymentCheckoutView(
                     serviceID: serviceID,
                     dispatchKind: .pittecAutoSequential,
                     catalogRepository: catalogRepository,
                     paymentRepository: paymentRepository,
                     savedCardRepository: savedCardRepository,
-                    onApproved: { requestID in
-                        showPaymentSheet = false
-                        viewModel.callPitTec(requestID: requestID)
+                    pittecContext: context,
+                    onApproved: { _ in
+                        pittecPaymentContext = nil
+                        viewModel.refreshAfterPayment()
                     },
                     onSessionExpired: onSessionExpired
                 )
@@ -215,7 +217,7 @@ struct PitTecClientView: View {
     }
 
     private var callButton: some View {
-        Button(action: { showPaymentSheet = true }) {
+        Button(action: { viewModel.callPitTec() }) {
             Text("Chamar PitTec")
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -241,6 +243,10 @@ struct PitTecClientView: View {
             searchingState(snapshot, pendingAction: pendingAction)
         case .awaitingProvider:
             searchingState(snapshot, pendingAction: pendingAction)
+        case .awaitingClientConfirmation:
+            confirmationState(snapshot, pendingAction: pendingAction)
+        case .awaitingPayment:
+            paymentPendingState(snapshot)
         case .accepted, .inProgress:
             acceptedState(snapshot, pendingAction: pendingAction)
         case .cancelled, .completed, .exhausted:
@@ -284,6 +290,86 @@ struct PitTecClientView: View {
         }
     }
 
+    /// `021`/migration `20260913010000`: card do orçamento ofertado pelo PitTec ao aceitar
+    /// (`AWAITING_CLIENT_CONFIRMATION`) — o valor AINDA NÃO foi cobrado (o pagamento só acontece
+    /// depois, em `AWAITING_PAYMENT`). "Recusar" cancela o atendimento (`QUOTE_DECLINED`, tratado
+    /// pelo próprio backend); "Confirmar" avança para a etapa de pagamento.
+    private func confirmationState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Label(snapshot.provider?.displayName ?? "PitTec", systemImage: "wrench.and.screwdriver.fill")
+                .font(PitGoTypography.sectionTitle)
+                .accessibilityAddTraits(.isHeader)
+            Text("aceitou seu chamado.")
+                .font(PitGoTypography.body)
+            VStack(spacing: 4) {
+                Text("Valor do atendimento")
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
+                Text(formattedAmount(snapshot.appointment?.quotedPrice ?? 0))
+                    .font(PitGoTypography.sectionTitle)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .background(tokens.surface)
+            Text("Confirme para seguir com o atendimento — o pagamento acontece no próximo passo.")
+                .font(PitGoTypography.caption)
+                .foregroundStyle(tokens.textSecondary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: 12) {
+                Button("Recusar") { viewModel.declineQuote() }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .disabled(pendingAction != nil || !snapshot.allowedActions.contains(.declineQuote))
+                Button("Confirmar") { viewModel.confirmQuote() }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .disabled(pendingAction != nil || !snapshot.allowedActions.contains(.confirmQuote))
+            }
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// `021`/migration `20260913010000`: orçamento já confirmado, aguardando o pagamento em si —
+    /// abre `PaymentCheckoutView` amarrado ao atendimento/versão do orçamento (`mp-create-payment`
+    /// valida os dois server-side); aprovado, o backend avança para `ACCEPTED` sozinho.
+    private func paymentPendingState(_ snapshot: PitTecDispatchSnapshot) -> some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Label(snapshot.provider?.displayName ?? "PitTec", systemImage: "wrench.and.screwdriver.fill")
+                .font(PitGoTypography.sectionTitle)
+                .accessibilityAddTraits(.isHeader)
+            Text("Orçamento confirmado — falta só pagar.")
+                .font(PitGoTypography.body)
+            Text(formattedAmount(snapshot.appointment?.quotedPrice ?? 0))
+                .font(PitGoTypography.sectionTitle)
+            if let appointment = snapshot.appointment, snapshot.allowedActions.contains(.openPayment) {
+                Button("Pagar agora") {
+                    pittecPaymentContext = PitTecPaymentContext(
+                        searchID: snapshot.searchID,
+                        appointmentID: appointment.appointmentID,
+                        quoteVersion: appointment.quoteVersion,
+                        amount: appointment.quotedPrice
+                    )
+                }
+                .frame(maxWidth: .infinity, minHeight: 56)
+                .foregroundStyle(.white)
+                .background(tokens.accent)
+                .clipShape(Capsule())
+            }
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func formattedAmount(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "pt_BR")
+        return formatter.string(from: amount as NSDecimalNumber) ?? "R$ \(amount)"
+    }
+
     private func acceptedState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
         VStack(spacing: 0) {
             if let context = viewModel.routeContext {
@@ -291,6 +377,11 @@ struct PitTecClientView: View {
                     annotations: [
                         PitGoMapAnnotationItem(id: "pittec", coordinate: CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude), title: snapshot.provider?.displayName, symbolName: "wrench.and.screwdriver.fill"),
                         PitGoMapAnnotationItem(id: "client", coordinate: CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude), title: "Você"),
+                    ],
+                    // `021` FR-008: enquadra cliente + PitTec juntos, em vez de depender do zoom padrão.
+                    fitCoordinates: [
+                        CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
+                        CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude),
                     ],
                     routeLine: [
                         CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
