@@ -23,7 +23,7 @@ final class HomeViewModel {
     let diagnostic = DiagnosticPrompt(
         title: "Não sei o que aconteceu",
         description: "Descreva o problema e sugerimos o serviço",
-        symbolName: "questionmark.circle.fill"
+        symbolName: "sparkles"
     )
 
     init(repository: AccountRepository, catalogRepository: ServiceCatalogRepository, userID: UUID, authEmail: String) {

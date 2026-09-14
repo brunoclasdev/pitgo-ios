@@ -87,22 +87,26 @@ struct HomeView: View {
 
     private func mainContent(profile: Profile, vehicle: Vehicle?, services: LoadState<[HomeServiceListing]>) -> some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
-                Group {
-                    headerSection(profile: profile)
-                    vehicleSection(vehicle: vehicle)
-                    diagnosticSection
-                    Text("O que seu carro precisa hoje?")
-                        .font(PitGoTypography.sectionTitle)
-                        .foregroundStyle(tokens.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityAddTraits(.isHeader)
+            // `.gridCellColumns(2)` num `Group` dentro de `LazyVGrid` não estava propagando de
+            // forma confiável para cada filho (achado nesta sessão, confirmado num device físico —
+            // header/veículo e diagnóstico/título apareciam lado a lado em vez de empilhados).
+            // Seções de largura total ficam num `LazyVStack` comum; só a grade de serviços — que
+            // realmente precisa de 2 colunas — usa `LazyVGrid`.
+            LazyVStack(spacing: 16) {
+                headerSection(profile: profile)
+                vehicleSection(vehicle: vehicle)
+                diagnosticSection
+                Text("O que seu carro precisa hoje?")
+                    .font(PitGoTypography.sectionTitle)
+                    .foregroundStyle(tokens.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
+
+                LazyVGrid(columns: columns, spacing: 16) {
+                    servicesGridContent(services)
                 }
-                .gridCellColumns(2)
 
-                servicesGridContent(services)
-
-                appointmentTrackingEntry.gridCellColumns(2)
+                appointmentTrackingEntry
             }
             .padding(16)
         }
@@ -163,8 +167,6 @@ struct HomeView: View {
 
     private func headerSection(profile: Profile) -> some View {
         HStack(spacing: 12) {
-            avatar(profile: profile)
-
             VStack(alignment: .leading, spacing: 2) {
                 Text("Olá,")
                     .font(PitGoTypography.body)
@@ -175,6 +177,8 @@ struct HomeView: View {
             }
 
             Spacer(minLength: 0)
+
+            avatar(profile: profile)
         }
         .accessibilityElement(children: .combine)
     }
@@ -221,9 +225,11 @@ struct HomeView: View {
                         .foregroundStyle(tokens.textSecondary)
 
                     HStack(spacing: 12) {
-                        Image(systemName: "car.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(tokens.accent)
+                        Text("🚗")
+                            .font(.system(size: 22))
+                            .frame(width: 44, height: 44)
+                            .background(tokens.purpleContainer)
+                            .clipShape(Circle())
                             .accessibilityHidden(true)
 
                         VStack(alignment: .leading, spacing: 2) {
@@ -304,8 +310,11 @@ struct HomeView: View {
         Button(action: onDiagnosticTap) {
             HStack(spacing: 12) {
                 Image(systemName: viewModel.diagnostic.symbolName)
-                    .font(.system(size: 24))
-                    .foregroundStyle(tokens.accent)
+                    .font(.system(size: 18))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(tokens.accent)
+                    .clipShape(Circle())
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -319,11 +328,19 @@ struct HomeView: View {
                 }
 
                 Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(tokens.textSecondary)
+                    .accessibilityHidden(true)
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(tokens.purpleContainer)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(tokens.accent.opacity(0.3), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
@@ -340,9 +357,11 @@ private struct ServiceCard: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
-                Image(systemName: "wrench.and.screwdriver.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(tokens.accent)
+                Text(categoryEmoji)
+                    .font(.system(size: 22))
+                    .frame(width: 44, height: 44)
+                    .background(tokens.purpleContainer)
+                    .clipShape(Circle())
                     .accessibilityHidden(true)
                 Text(listing.serviceName)
                     .font(PitGoTypography.categoryTitle)
@@ -371,6 +390,20 @@ private struct ServiceCard: View {
         .frame(minHeight: 44)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+    }
+
+    /// Emoji por categoria (`categoryName` já vem de `list_home_services()`, `013`) — substitui o
+    /// ícone único genérico anterior por uma identidade visual por serviço; `🔧` cobre qualquer
+    /// categoria fora deste conjunto conhecido, sem quebrar para nomes futuros do catálogo.
+    private var categoryEmoji: String {
+        let name = listing.categoryName.lowercased()
+        if name.contains("bateria") { return "🔋" }
+        if name.contains("óleo") || name.contains("oleo") { return "🛢️" }
+        if name.contains("pneu") { return "🛞" }
+        if name.contains("painel") || name.contains("luz") || name.contains("diagnóstico") || name.contains("diagnostico") { return "⚠️" }
+        if name.contains("liga") || name.contains("partida") { return "🚗" }
+        if name.contains("reparo") { return "🔧" }
+        return "🔧"
     }
 
     private func formattedPrice(_ value: Decimal) -> String {
