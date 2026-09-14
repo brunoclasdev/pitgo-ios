@@ -22,6 +22,7 @@ struct PitGoRootView: View {
     private let providerRegistrationRepository: ProviderRegistrationRepository
     private let addressVerificationRepository: ProviderAddressVerificationRepository
     private let providerDashboardRepository: ProviderDashboardRepository
+    private let pitTecPricingRepository: PitTecPricingRepository
     private let migrationRepository: ProviderMigrationRepository
     private let serviceMapRepository: ServiceMapRepository
     private let mobileDispatchRepository: MobileDispatchRepository
@@ -44,6 +45,7 @@ struct PitGoRootView: View {
         vehicleRepository = VehicleRepository(client: client)
         providerRegistrationRepository = ProviderRegistrationRepository(client: client)
         providerDashboardRepository = ProviderDashboardRepository(client: client)
+        pitTecPricingRepository = PitTecPricingRepository(client: client)
         migrationRepository = ProviderMigrationRepository(client: client)
         serviceMapRepository = ServiceMapRepository(client: client)
         mobileDispatchRepository = MobileDispatchRepository(client: client)
@@ -122,15 +124,29 @@ struct PitGoRootView: View {
                     }
                 }
             case let .authenticatedProviderReady(snapshot):
-                ProviderDashboardView(
-                    repository: providerDashboardRepository,
-                    snapshot: snapshot,
-                    trackingStateRepository: trackingStateRepository,
-                    dispatchRepository: mobileDispatchRepository,
-                    pitTecRepository: pitTecRepository,
-                    locationRepository: locationRepository,
-                    onSignOut: { Task { await sessionStore.signOut() } }
-                )
+                // `022` — modalidade PitTec ganha uma home dedicada (mapa + 4 abas); Fixo/Móvel
+                // continuam na `ProviderDashboardView` de sempre, sem nenhuma mudança.
+                if snapshot.provider.locationMode == .pittec {
+                    PitTecHomeView(
+                        repository: providerDashboardRepository,
+                        snapshot: snapshot,
+                        pitTecRepository: pitTecRepository,
+                        pricingRepository: pitTecPricingRepository,
+                        dispatchRepository: mobileDispatchRepository,
+                        locationRepository: locationRepository,
+                        onSignOut: { Task { await sessionStore.signOut() } }
+                    )
+                } else {
+                    ProviderDashboardView(
+                        repository: providerDashboardRepository,
+                        snapshot: snapshot,
+                        trackingStateRepository: trackingStateRepository,
+                        dispatchRepository: mobileDispatchRepository,
+                        pitTecRepository: pitTecRepository,
+                        locationRepository: locationRepository,
+                        onSignOut: { Task { await sessionStore.signOut() } }
+                    )
+                }
             }
         }
         .pitGoTheme()

@@ -18,6 +18,10 @@ import Foundation
 @MainActor
 final class ProviderDiscoveryTracker {
     private(set) var state: ProviderTrackingState = .stopped
+    /// `022` — último fix recebido pelo mesmo stream já consumido para publicar a localização de
+    /// despacho; exposto só para exibição (ex.: centralizar o mapa da home do PitTec), sem criar uma
+    /// segunda fonte de localização.
+    private(set) var lastFix: DeviceLocationFix?
 
     private let locationRepository: DeviceLocationRepository
     private let dispatchRepository: MobileDispatchRepository
@@ -77,6 +81,7 @@ final class ProviderDiscoveryTracker {
     }
 
     private func handle(fix: DeviceLocationFix) async {
+        lastFix = fix
         let now = Date()
         if let last = lastPublishAttempt, now.timeIntervalSince(last) < publishInterval { return }
         lastPublishAttempt = now
