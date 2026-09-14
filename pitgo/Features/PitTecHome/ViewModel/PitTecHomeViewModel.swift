@@ -26,18 +26,33 @@ final class PitTecHomeViewModel {
     /// `PitTecIncomingRequestView` quando este campo deixa de ser `nil`, independentemente da aba
     /// selecionada no momento (FR-010/SC-004).
     private(set) var pitTecAppointmentToOpen: UUID?
+    /// `022` fix: o tracker de publicação (`discoveryTracker`) só roda enquanto "Disponível" está
+    /// ligado (`syncTracker`) — com o provider indisponível, `lastFix` nunca era preenchido e a aba
+    /// Mapa ficava presa para sempre em "Obtendo localização…". Fix único pedido sob demanda (mesmo
+    /// padrão de `PitTecClientViewModel.lastFix`) só para centralizar o mapa nesse caso, sem iniciar
+    /// um segundo stream contínuo nem publicar nada.
+    private(set) var mapFix: DeviceLocationFix?
+    private(set) var mapFixFailure: LocationRequiredReason?
 
     let discoveryTracker: ProviderDiscoveryTracker
 
     private let repository: ProviderDashboardRepository
     private let pitTecRepository: PitTecRepository
     private let pricingRepository: PitTecPricingRepository
+    private let locationRepository: DeviceLocationRepository
     private let accountID: UUID
     private var settingsTask: Task<Void, Never>?
     private var isObservingIncoming = false
     // Mesma guarda de `ProviderDashboardViewModel` (`014` FR-018): uma solicitação já dispensada
     // manualmente não deve reabrir sozinha por causa de um broadcast subsequente não relacionado.
     private var dismissedPitTecID: UUID?
+    /// Reproduzido em device físico real: uma solicitação nova só aparecia depois de fechar e
+    /// reabrir o app — o broadcast de `provider-dispatch:<providerID>` não chegava (mesma classe de
+    /// falha já documentada em `PitTecClientViewModel`/`PaymentCheckoutViewModel`: `subscribeWithError()`
+    /// pode levar dezenas de segundos, ou o evento simplesmente se perde) e não havia nenhum
+    /// fallback aqui do lado provider. Poll de segurança abaixo, nunca a única fonte de verdade.
+    private var pollTask: Task<Void, Never>?
+    private let pollInterval: TimeInterval = 5
 
     init(
         repository: ProviderDashboardRepository,
@@ -50,6 +65,7 @@ final class PitTecHomeViewModel {
         self.repository = repository
         self.pitTecRepository = pitTecRepository
         self.pricingRepository = pricingRepository
+        self.locationRepository = locationRepository
         accountID = snapshot.accountID
         state = .content(snapshot)
         discoveryTracker = ProviderDiscoveryTracker(locationRepository: locationRepository, dispatchRepository: dispatchRepository)
@@ -62,22 +78,53 @@ final class PitTecHomeViewModel {
     /// Chamado uma vez em `.task` — mesma responsabilidade de `ProviderDashboardViewModel.onAppear`.
     func onAppear() {
         syncTracker()
+        loadMapFixIfNeeded()
         loadPricing()
         guard !isObservingIncoming else { return }
         isObservingIncoming = true
         Task { [weak self] in
             guard let self else { return }
             await refreshActiveDispatch()
+            subscribeToProviderInBackground()
+            startPolling()
+        }
+    }
+
+    func tearDown() {
+        stopPolling()
+        discoveryTracker.stop()
+        pitTecRepository.disconnectAll()
+        isObservingIncoming = false
+    }
+
+    /// Roda à parte do resto de `onAppear` — mesmo achado de `PitTecClientViewModel.
+    /// subscribeToSearchInBackground`: se essa chamada bloqueasse `onAppear`, o poll de segurança
+    /// (que existe justamente para cobrir a demora/perda dela) ficaria inútil enquanto ela não
+    /// resolve.
+    private func subscribeToProviderInBackground() {
+        Task { [weak self] in
+            guard let self else { return }
             await pitTecRepository.subscribeToProvider(providerID: providerID) { [weak self] in
                 Task { @MainActor in await self?.refreshActiveDispatch() }
             }
         }
     }
 
-    func tearDown() {
-        discoveryTracker.stop()
-        pitTecRepository.disconnectAll()
-        isObservingIncoming = false
+    private func startPolling() {
+        guard pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(self.pollInterval * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                await self.refreshActiveDispatch()
+            }
+        }
+    }
+
+    private func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
     }
 
     /// Limpa a solicitação já tratada (aberta pela View) para não reabrir a mesma tela ao voltar.
@@ -134,6 +181,49 @@ final class PitTecHomeViewModel {
         } else {
             discoveryTracker.stop()
         }
+    }
+
+    /// `022` fix — ver nota em `mapFix`. Só pede um fix quando nem o tracker de publicação nem um
+    /// fix anterior já deram uma posição; assim não compete com `discoveryTracker` (que, uma vez
+    /// "Disponível" ligado, passa a alimentar `lastFix` sozinho e este fix pontual deixa de ser
+    /// consultado pela View).
+    private func loadMapFixIfNeeded() {
+        guard mapFix == nil, discoveryTracker.lastFix == nil else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            switch locationRepository.authorizationStatus {
+            case .denied, .restricted:
+                mapFixFailure = .permissionDenied
+                return
+            case .notDetermined:
+                locationRepository.requestWhenInUseAuthorization()
+            case .authorizedWhenInUse, .authorizedAlways:
+                break
+            }
+            guard DeviceLocationServiceStatus.isEnabled else {
+                mapFixFailure = .serviceDisabled
+                return
+            }
+            switch await locationRepository.requestOneShotFix() {
+            case let .success(fix):
+                mapFixFailure = nil
+                mapFix = fix
+            case .permissionDenied:
+                mapFixFailure = .permissionDenied
+            case .serviceDisabled:
+                mapFixFailure = .serviceDisabled
+            case .timeout:
+                mapFixFailure = .timeout
+            case .failure:
+                mapFixFailure = .unknown
+            }
+        }
+    }
+
+    /// Chamado pelo botão "Tentar novamente" da aba Mapa quando `mapFixFailure` está presente.
+    func retryMapFix() {
+        mapFixFailure = nil
+        loadMapFixIfNeeded()
     }
 
     func retry() {

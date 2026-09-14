@@ -57,28 +57,52 @@ struct PitTecHomeMapTab: View {
 
     @ViewBuilder
     private var mapOrDegradedMessage: some View {
-        if let fix = viewModel.discoveryTracker.lastFix {
+        // `022` fix: `discoveryTracker.lastFix` só existe enquanto "Disponível" está ligado — com o
+        // provider indisponível, cai no `viewModel.mapFix` (fix único pedido sob demanda) em vez de
+        // ficar preso para sempre em "Obtendo localização…".
+        if let fix = viewModel.discoveryTracker.lastFix ?? viewModel.mapFix {
             PitGoMapView(
                 annotations: [],
                 centerCoordinate: CLLocationCoordinate2D(latitude: fix.latitude, longitude: fix.longitude),
                 showsUserLocation: true
             )
             .overlay(alignment: .bottomLeading) { MapAttributionView() }
+        } else if let failure = viewModel.mapFixFailure {
+            VStack(spacing: 12) {
+                Spacer()
+                Image(systemName: "location.slash.fill")
+                    .font(.largeTitle)
+                    .foregroundStyle(tokens.textSecondary)
+                Text(message(for: failure))
+                    .font(PitGoTypography.body)
+                    .foregroundStyle(tokens.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                Button("Tentar novamente") { viewModel.retryMapFix() }
+                    .frame(minHeight: 44)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityAddTraits(.updatesFrequently)
+        } else if case let .degraded(reason) = viewModel.discoveryTracker.state {
+            VStack(spacing: 12) {
+                Spacer()
+                Image(systemName: "location.slash.fill")
+                    .font(.largeTitle)
+                    .foregroundStyle(tokens.textSecondary)
+                Text(degradedMessage(for: reason))
+                    .font(PitGoTypography.body)
+                    .foregroundStyle(tokens.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityAddTraits(.updatesFrequently)
         } else {
             VStack(spacing: 12) {
                 Spacer()
-                if case .degraded = viewModel.discoveryTracker.state {
-                    Image(systemName: "location.slash.fill")
-                        .font(.largeTitle)
-                        .foregroundStyle(tokens.textSecondary)
-                    Text(degradedMessage)
-                        .font(PitGoTypography.body)
-                        .foregroundStyle(tokens.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                } else {
-                    ProgressView("Obtendo localização…")
-                }
+                ProgressView("Obtendo localização…")
                 Spacer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -86,14 +110,21 @@ struct PitTecHomeMapTab: View {
         }
     }
 
-    private var degradedMessage: String {
-        guard case let .degraded(reason) = viewModel.discoveryTracker.state else { return "" }
+    private func degradedMessage(for reason: TrackingDegradedReason) -> String {
         switch reason {
         case .permissionDenied: return "Permita o acesso à localização nas Configurações para ver o mapa."
         case .locationServicesDisabled: return "Ative os Serviços de Localização para ver o mapa."
         case .publisherConflict: return "Localização sendo publicada por outro dispositivo/sessão."
         case .offline: return "Sem conexão — sua posição pode ficar desatualizada."
         case .service, .sessionExpired, .notEligible, .appointmentTerminal: return "Não foi possível obter sua localização agora."
+        }
+    }
+
+    private func message(for reason: LocationRequiredReason) -> String {
+        switch reason {
+        case .permissionDenied: return "Permita o acesso à localização nas Configurações para ver o mapa."
+        case .serviceDisabled: return "Ative os Serviços de Localização para ver o mapa."
+        case .timeout, .unknown: return "Não foi possível obter sua localização agora."
         }
     }
 
