@@ -285,8 +285,12 @@ struct PitTecClientView: View {
     private func noticeMessage(_ notice: PitTecLastEvent) -> String {
         switch notice {
         case .providerRejected: "Um PitTec recusou a chamada. Procurando o próximo…"
-        case .proposalExpired: "O prazo de resposta esgotou. Procurando o próximo…"
+        case .offerExpired: "O prazo de resposta esgotou. Procurando o próximo…"
         case .providerCancelled: "O PitTec cancelou. Procurando o próximo…"
+        case .searchContinues: "Nenhum PitTec disponível até agora. Ampliando a área de busca…"
+        // `021`: só ocorrem em status terminal (`CANCELLED`); `recentNotice` nunca os expõe aqui
+        // (gated em `status == .searching`), mas o switch precisa ser exaustivo.
+        case .clientConfirmationTimeout, .quoteDeclined: "Busca encerrada."
         }
     }
 

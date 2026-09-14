@@ -32,6 +32,7 @@
 
 import Foundation
 import Supabase
+import os
 
 enum PitTecOperationResult {
     case snapshot(PitTecDispatchSnapshot)
@@ -60,6 +61,12 @@ enum PitTecRouteContextResult {
 }
 
 final class PitTecRepository {
+    /// Erros de RPC nunca chegavam a lugar nenhum (nem `Logger`, nem `print`) — qualquer falha virava
+    /// só "Não foi possível concluir agora" na tela, sem nenhum rastro de qual código/motivo real
+    /// veio do servidor. Código/mensagem de erro do Postgres não são dado sensível (são identificadores
+    /// estáveis do próprio contrato, ex.: `22023`/`INVALID_LOCATION`), então podem ser logados.
+    private static let logger = Logger(subsystem: "com.trustarx.pitgo", category: "PitTecRepository")
+
     private let client: SupabaseClient
 
     private var searchChannel: RealtimeChannelV2?
@@ -319,6 +326,12 @@ final class PitTecRepository {
     }
 
     private func classify(_ error: Error) -> PitTecFailureReason {
+        let reason = classifyReason(error)
+        Self.logger.error("RPC falhou, classificado como \(String(describing: reason), privacy: .public): \(String(describing: error), privacy: .public)")
+        return reason
+    }
+
+    private func classifyReason(_ error: Error) -> PitTecFailureReason {
         if let postgrestError = error as? PostgrestError {
             switch postgrestError.code {
             case "42501": return .sessionExpired

@@ -134,8 +134,20 @@ struct PitTecAppointment: Decodable, Equatable {
 /// um histórico de candidatos como o guincho móvel.
 enum PitTecLastEvent: String, Decodable, Hashable {
     case providerRejected = "PROVIDER_REJECTED"
-    case proposalExpired = "PROPOSAL_EXPIRED"
+    /// Achado nesta sessão: o valor real gravado pelo backend sempre foi `OFFER_EXPIRED`
+    /// (`20260902000000_pittec_on_demand.sql`, inalterado desde então) — o raw value anterior,
+    /// `PROPOSAL_EXPIRED`, nunca bateu com nada gravado de verdade; um evento de expiração de
+    /// oferta derrubava a decodificação inteira do snapshot em vez de só não mostrar o aviso.
+    case offerExpired = "OFFER_EXPIRED"
     case providerCancelled = "PROVIDER_CANCELLED"
+    /// `021`/migration `20260913010000` — gravado quando a busca esgota o raio atual e amplia para
+    /// o próximo (`advance_pittec_dispatch`), sempre com `status` ainda `SEARCHING`.
+    case searchContinues = "SEARCH_CONTINUES"
+    /// `021` — gravados só em transições terminais (`status` vira `CANCELLED`); `recentNotice`
+    /// nunca os exibe (só mostra evento com `status == .searching`), mas precisam existir aqui pois
+    /// `lastEvent` é decodificado incondicionalmente como parte do snapshot.
+    case clientConfirmationTimeout = "CLIENT_CONFIRMATION_TIMEOUT"
+    case quoteDeclined = "QUOTE_DECLINED"
 }
 
 struct PitTecDispatchSnapshot: Decodable, Equatable {
