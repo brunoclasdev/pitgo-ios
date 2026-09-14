@@ -15,11 +15,36 @@ struct SessionGateView: View {
     let onSignOut: () -> Void
 
     var body: some View {
+        switch state {
+        case .initializing, .verifying:
+            // Continuação visual da splash nativa (`UILaunchScreen`, `023`) — sem isso, a tela de
+            // marca (logo + roxo) passava rápido demais e caía de repente num fundo genérico com
+            // spinner, uma quebra perceptível bem no momento em que o app deveria parecer "uma
+            // coisa só" abrindo. Mesma cor/imagem do asset catalog usadas na splash.
+            loadingSplashContinuation
+        default:
+            gateContent
+        }
+    }
+
+    private var loadingSplashContinuation: some View {
+        ZStack {
+            Color("LaunchBackground").ignoresSafeArea()
+            VStack(spacing: 24) {
+                Image("LaunchImage")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 180, height: 180)
+                ProgressView()
+                    .tint(.white)
+            }
+        }
+    }
+
+    private var gateContent: some View {
         VStack(spacing: 16) {
             Spacer()
             switch state {
-            case .initializing, .verifying:
-                ProgressView()
             case .offlineVerification:
                 Image(systemName: "wifi.slash")
                     .font(.system(size: 40))
