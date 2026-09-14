@@ -297,7 +297,10 @@ struct PitTecClientView: View {
     /// `021`/migration `20260913010000`: card do orçamento ofertado pelo PitTec ao aceitar
     /// (`AWAITING_CLIENT_CONFIRMATION`) — o valor AINDA NÃO foi cobrado (o pagamento só acontece
     /// depois, em `AWAITING_PAYMENT`). "Recusar" cancela o atendimento (`QUOTE_DECLINED`, tratado
-    /// pelo próprio backend); "Confirmar" avança para a etapa de pagamento.
+    /// pelo próprio backend); "Confirmar" avança para a etapa de pagamento. O backend também libera
+    /// `CANCEL` nesse estado (junto de `CONFIRM_QUOTE`/`DECLINE_QUOTE`) — a tela nunca usava essa
+    /// terceira ação, deixando o cliente sem uma saída explícita de "desistir" sem ter que recusar o
+    /// orçamento em si.
     private func confirmationState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
         VStack(spacing: 16) {
             Spacer()
@@ -321,12 +324,46 @@ struct PitTecClientView: View {
                 .foregroundStyle(tokens.textSecondary)
                 .multilineTextAlignment(.center)
             HStack(spacing: 12) {
-                Button("Recusar") { viewModel.declineQuote() }
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .disabled(pendingAction != nil || !snapshot.allowedActions.contains(.declineQuote))
-                Button("Confirmar") { viewModel.confirmQuote() }
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .disabled(pendingAction != nil || !snapshot.allowedActions.contains(.confirmQuote))
+                Button {
+                    viewModel.declineQuote()
+                } label: {
+                    // Sem isso o botão só ficava cinza ao tocar, sem nenhum sinal de que o toque foi
+                    // registrado — parecia travado enquanto a RPC ainda estava em voo.
+                    if pendingAction?.kind == .cancel(reason: "QUOTE_DECLINED") {
+                        ProgressView().tint(tokens.textSecondary)
+                    } else {
+                        Text("Recusar")
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .disabled(pendingAction != nil || !snapshot.allowedActions.contains(.declineQuote))
+                Button {
+                    viewModel.confirmQuote()
+                } label: {
+                    if pendingAction?.kind == .confirm {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Confirmar")
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .foregroundStyle(.white)
+                .background(tokens.accent)
+                .clipShape(Capsule())
+                .disabled(pendingAction != nil || !snapshot.allowedActions.contains(.confirmQuote))
+            }
+            if snapshot.allowedActions.contains(.cancel) {
+                Button {
+                    viewModel.cancel()
+                } label: {
+                    if pendingAction?.kind == .cancel(reason: "") {
+                        ProgressView().tint(tokens.textSecondary)
+                    } else {
+                        Text("Cancelar")
+                    }
+                }
+                .frame(minHeight: 44)
+                .disabled(pendingAction != nil)
             }
             Spacer()
         }

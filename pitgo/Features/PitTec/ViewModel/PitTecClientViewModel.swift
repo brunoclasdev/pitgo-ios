@@ -58,10 +58,8 @@ final class PitTecClientViewModel {
             switch await repository.getActiveDispatch() {
             case let .snapshot(snapshot) where snapshot.serviceID == serviceID:
                 applySnapshot(snapshot)
-                await repository.subscribeToSearch(searchID: snapshot.searchID) { [weak self] in
-                    Task { @MainActor in self?.refresh() }
-                }
                 startPolling()
+                subscribeToSearchInBackground(searchID: snapshot.searchID)
             default:
                 await loadDiscovery()
             }
@@ -141,10 +139,21 @@ final class PitTecClientViewModel {
             let result = await repository.startDispatch(requestID: UUID(), serviceID: serviceID, fix: fix)
             apply(result)
             if case let .snapshot(snapshot) = result {
-                await repository.subscribeToSearch(searchID: snapshot.searchID) { [weak self] in
-                    Task { @MainActor in self?.refresh() }
-                }
                 startPolling()
+                subscribeToSearchInBackground(searchID: snapshot.searchID)
+            }
+        }
+    }
+
+    /// Reproduzido em device físico real: `subscribeWithError()` chegou a levar ~70s pra resolver
+    /// neste projeto — como `startPolling()` rodava só depois do `await` dessa chamada, o fallback
+    /// inteiro (criado justamente pra cobrir demora do Realtime) ficava inútil nesses mesmos ~70s.
+    /// Inscrição roda à parte, sem bloquear o poll nem o resto do fluxo — é só um atalho de latência,
+    /// nunca a única fonte de verdade.
+    private func subscribeToSearchInBackground(searchID: UUID) {
+        Task { [weak self] in
+            await self?.repository.subscribeToSearch(searchID: searchID) { [weak self] in
+                Task { @MainActor in self?.refresh() }
             }
         }
     }
@@ -192,7 +201,14 @@ final class PitTecClientViewModel {
               let appointment = snapshot.appointment,
               appointment.status == .awaitingClientConfirmation,
               pendingAction == nil else { return }
-        pendingAction = PendingDispatchAction(kind: accept ? .confirm : .cancel(reason: "QUOTE_DECLINED"), expectedRevision: appointment.revision)
+        // `respond_to_pittec_quote` compara `p_expected_revision` com a revisão da BUSCA
+        // (`search_row.revision`), não com a do agendamento — confirmado lendo a RPC no banco depois
+        // de reproduzir em device físico real um "Confirmar" que sempre voltava 200 OK sem nunca
+        // aplicar nada (`client_confirmed_at` permanecia `null`). Antes mandava `appointment.revision`
+        // aqui, que é um contador à parte e nunca bate com o da busca — todo toque virava
+        // `REVISION_CONFLICT` silencioso (a RPC devolve o snapshot atual, indistinguível de um no-op
+        // pra quem está olhando a tela).
+        pendingAction = PendingDispatchAction(kind: accept ? .confirm : .cancel(reason: "QUOTE_DECLINED"), expectedRevision: snapshot.revision)
         state = .content(snapshot, pendingAction: pendingAction)
         Task { [weak self] in
             guard let self else { return }
@@ -201,7 +217,7 @@ final class PitTecClientViewModel {
                 appointmentID: appointment.appointmentID,
                 quoteVersion: appointment.quoteVersion,
                 accept: accept,
-                expectedRevision: appointment.revision
+                expectedRevision: snapshot.revision
             )
             pendingAction = nil
             apply(result)
@@ -228,9 +244,18 @@ final class PitTecClientViewModel {
         case let .snapshot(snapshot):
             applySnapshot(snapshot)
         case .noActiveFlow:
-            state = .restoring
-            isStarted = false
+            // Reproduzido em device físico real: um poll (ou o retorno do próprio `respondToQuote`)
+            // podia chegar depois de o atendimento já ter saído de "ativo" no servidor sem nunca ter
+            // entregado um snapshot terminal antes disso — o código antigo só zerava pra `.restoring`
+            // e desligava tudo (`isStarted = false`, poll parado), sem nenhuma ação de recuperação: a
+            // tela ficava presa em "Carregando…" pra sempre, sem nem um jeito de voltar sozinha à
+            // descoberta. Em vez de um beco sem saída, volta pra descoberta como se fosse uma entrada
+            // nova na tela.
             stopPolling()
+            repository.disconnectAll()
+            Task { [weak self] in
+                await self?.loadDiscovery()
+            }
         case let .failure(reason):
             applyFailure(reason)
         }

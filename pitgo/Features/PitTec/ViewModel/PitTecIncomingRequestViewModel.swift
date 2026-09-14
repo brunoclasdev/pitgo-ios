@@ -40,10 +40,20 @@ final class PitTecIncomingRequestViewModel {
         Task { [weak self] in
             guard let self else { return }
             apply(await repository.getActiveDispatch())
-            await repository.subscribeToProvider(providerID: providerID) { [weak self] in
+            startPolling()
+            subscribeToProviderInBackground()
+        }
+    }
+
+    /// Mesmo bug/fix de `PitTecClientViewModel.subscribeToSearchInBackground` — `subscribeWithError()`
+    /// chegou a levar ~70s pra resolver em device físico real; rodar depois dele fazia o próprio
+    /// fallback de poll (criado pra cobrir essa demora) ficar inútil durante esses ~70s.
+    private func subscribeToProviderInBackground() {
+        Task { [weak self] in
+            guard let self else { return }
+            await self.repository.subscribeToProvider(providerID: self.providerID) { [weak self] in
                 Task { @MainActor in self?.refresh() }
             }
-            startPolling()
         }
     }
 

@@ -70,6 +70,9 @@
     "%lld min" : {
 
     },
+    "🚗" : {
+
+    },
     "A %@ de você" : {
 
     },
@@ -183,9 +186,6 @@
       }
     },
     "Agora saia desta conta e entre ou cadastre-se com a conta empresarial que deve receber a empresa (um e-mail diferente do seu e-mail de cliente)." : {
-
-    },
-    "Aguardando confirmação do cliente" : {
 
     },
     "Aguardando localização do prestador…" : {
@@ -773,6 +773,9 @@
         }
       }
     },
+    "Confirme para seguir com o atendimento — o pagamento acontece no próximo passo." : {
+
+    },
     "Continuar" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1189,9 +1192,6 @@
           }
         }
       }
-    },
-    "Esse valor já foi pago no checkout — confirme para seguir com o atendimento." : {
-
     },
     "Esta placa não está disponível." : {
       "extractionState" : "manual",
@@ -2119,9 +2119,6 @@
     "O cadastro é totalmente opcional — Pix continua disponível sem ele." : {
 
     },
-    "O cliente está revisando o valor do atendimento." : {
-
-    },
     "O desafio de migração expirou ou não é mais válido. Reinicie a migração a partir da conta de cliente." : {
 
     },
@@ -2189,6 +2186,9 @@
         }
       }
     },
+    "Orçamento confirmado — falta só pagar." : {
+
+    },
     "Outro dispositivo está publicando a localização deste atendimento." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2213,6 +2213,9 @@
           }
         }
       }
+    },
+    "Pagar agora" : {
+
     },
     "Pagar com Pix" : {
 
