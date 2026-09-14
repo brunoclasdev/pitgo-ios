@@ -354,27 +354,46 @@ private struct ServiceCard: View {
     let listing: HomeServiceListing
     let action: () -> Void
 
+    /// Restrição temporária a pedido do cliente (2026-09-14): só PitTec fica navegável na Home — as
+    /// demais modalidades continuam vindo do catálogo real (nenhum dado é ocultado), só ficam
+    /// visualmente desabilitadas com "Em manutenção" em vez de abrir o despacho.
+    private var isUnderMaintenance: Bool { listing.dispatchKind != .pittecAutoSequential }
+
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(categoryEmoji)
-                    .font(.system(size: 22))
-                    .frame(width: 44, height: 44)
-                    .background(tokens.purpleContainer)
-                    .clipShape(Circle())
-                    .accessibilityHidden(true)
+                HStack(alignment: .top) {
+                    Text(categoryEmoji)
+                        .font(.system(size: 22))
+                        .frame(width: 44, height: 44)
+                        .background(tokens.purpleContainer)
+                        .clipShape(Circle())
+                        .accessibilityHidden(true)
+                    Spacer(minLength: 4)
+                    if isUnderMaintenance {
+                        Text("Em manutenção")
+                            .font(PitGoTypography.caption)
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.orange.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                }
                 Text(listing.serviceName)
                     .font(PitGoTypography.categoryTitle)
                     .foregroundStyle(tokens.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                if let minimumPrice = listing.minimumPrice {
-                    Text("A partir de \(formattedPrice(minimumPrice))")
-                        .font(PitGoTypography.caption)
-                        .foregroundStyle(tokens.textSecondary)
-                } else {
-                    Text(listing.categoryName)
-                        .font(PitGoTypography.caption)
-                        .foregroundStyle(tokens.textSecondary)
+                if !isUnderMaintenance {
+                    if let minimumPrice = listing.minimumPrice {
+                        Text("A partir de \(formattedPrice(minimumPrice))")
+                            .font(PitGoTypography.caption)
+                            .foregroundStyle(tokens.textSecondary)
+                    } else {
+                        Text(listing.categoryName)
+                            .font(PitGoTypography.caption)
+                            .foregroundStyle(tokens.textSecondary)
+                    }
                 }
             }
             .padding()
@@ -388,8 +407,11 @@ private struct ServiceCard: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
+        .disabled(isUnderMaintenance)
+        .opacity(isUnderMaintenance ? 0.6 : 1)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(isUnderMaintenance ? "\(listing.serviceName), em manutenção" : listing.serviceName)
     }
 
     /// Emoji por categoria (`categoryName` já vem de `list_home_services()`, `013`) — substitui o
