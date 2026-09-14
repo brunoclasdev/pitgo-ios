@@ -88,7 +88,7 @@ struct PitTecHomeView: View {
                 case .values:
                     PitTecHomeValuesTab(pricingState: viewModel.pricingState)
                 case .profile:
-                    PitTecHomeProfileTab(snapshot: snapshot, showSignOutConfirmation: $showSignOutConfirmation, onSignOut: onSignOut)
+                    PitTecHomeProfileTab(viewModel: viewModel, snapshot: snapshot, showSignOutConfirmation: $showSignOutConfirmation, onSignOut: onSignOut)
                 }
             }
         case .failure:

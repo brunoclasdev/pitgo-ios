@@ -2,14 +2,18 @@
 //  PitTecHomeProfileTab.swift
 //  pitgo
 //
-//  Aba "Perfil" da home do PitTec (`022`, US2, FR-009) — dados de conta + encerrar sessão, mesmo
-//  padrão de `ProviderDashboardView.signOutButton`.
+//  Aba "Perfil" da home do PitTec (`022`, US2, FR-009) — dados de conta + disponibilidade para
+//  atendimento + encerrar sessão, mesmo padrão de `ProviderDashboardView.availabilitySection`
+//  (`Toggle` ligado a `setAvailability`/`settingsFailure`). Segundo ponto de acesso ao mesmo
+//  `snapshot.provider.available` já alternável pelo card no topo da aba Mapa
+//  (`PitTecHomeMapTab.availabilityCard`) — mesma fonte de estado, sem lógica nova no repositório.
 //
 
 import SwiftUI
 
 struct PitTecHomeProfileTab: View {
     @Environment(\.pitGoTokens) private var tokens
+    let viewModel: PitTecHomeViewModel
     let snapshot: ProviderSnapshot
     @Binding var showSignOutConfirmation: Bool
     let onSignOut: () -> Void
@@ -25,12 +29,41 @@ struct PitTecHomeProfileTab: View {
                     .font(PitGoTypography.body)
                     .foregroundStyle(tokens.textSecondary)
             }
+            availabilitySection
             Spacer()
             signOutButton
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(tokens.background)
+    }
+
+    private var availabilitySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(
+                "Disponível para atendimento",
+                isOn: Binding(get: { snapshot.provider.available }, set: { viewModel.setAvailability($0) })
+            )
+            .font(PitGoTypography.body)
+            Text("Desligado, você fica invisível para novos clientes — atendimentos já aceitos continuam normalmente.")
+                .font(PitGoTypography.caption)
+                .foregroundStyle(tokens.textSecondary)
+            if let failure = viewModel.settingsFailure {
+                Text(message(for: failure))
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+        }
+    }
+
+    private func message(for reason: ProviderSettingsFailureReason) -> String {
+        switch reason {
+        case .offline: "Sem conexão com a internet. Verifique sua rede e tente novamente."
+        case .service: "Não foi possível concluir agora. Tente novamente em instantes."
+        case .sessionExpired: "Sua sessão expirou. Entre novamente."
+        case .unknown: "Não foi possível concluir a ação. Tente novamente."
+        }
     }
 
     private var signOutButton: some View {
