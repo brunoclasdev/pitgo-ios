@@ -37,6 +37,12 @@ final class ProviderDashboardViewModel {
     private var dismissedIncomingID: UUID?
     private var dismissedResumedTrackingID: UUID?
     private var dismissedPitTecID: UUID?
+    /// Mesmo achado/fix de `PitTecHomeViewModel` (reproduzido em device físico real): uma
+    /// solicitação nova só aparecia depois de fechar e reabrir o app — o Broadcast de
+    /// `provider-dispatch:<providerID>` não chegava e não havia nenhum fallback aqui. Poll de
+    /// segurança, nunca a única fonte de verdade.
+    private var pollTask: Task<Void, Never>?
+    private let pollInterval: TimeInterval = 5
 
     init(
         repository: ProviderDashboardRepository,
@@ -63,19 +69,53 @@ final class ProviderDashboardViewModel {
             guard let self else { return }
             await checkIncoming()
             await checkPitTecIncoming()
-            let providerID = accountIDForTopic
+            subscribeToIncomingInBackground()
+            startPolling()
+        }
+    }
+
+    /// Roda à parte do resto de `onAppear` — mesmo achado de `PitTecClientViewModel.
+    /// subscribeToSearchInBackground`: se essa chamada bloqueasse `onAppear`, o poll de segurança
+    /// (que existe justamente para cobrir a demora/perda dela) ficaria inútil enquanto ela não
+    /// resolve.
+    private func subscribeToIncomingInBackground() {
+        let providerID = accountIDForTopic
+        Task { [weak self] in
+            guard let self else { return }
             await dispatchRepository.subscribeToProvider(providerID: providerID) { [weak self] in
                 Task { @MainActor in await self?.checkIncoming() }
             }
+        }
+        Task { [weak self] in
+            guard let self else { return }
             await pitTecRepository.subscribeToProvider(providerID: providerID) { [weak self] in
                 Task { @MainActor in await self?.checkPitTecIncoming() }
             }
         }
     }
 
+    private func startPolling() {
+        guard pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(self.pollInterval * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                await self.checkIncoming()
+                await self.checkPitTecIncoming()
+            }
+        }
+    }
+
+    private func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
     /// Chamado quando a `View` raiz do dashboard sai de cena (troca/fim de sessão) — nunca ao
     /// apenas empurrar `ProviderIncomingRequestView` na mesma `NavigationStack`.
     func tearDown() {
+        stopPolling()
         discoveryTracker.stop()
         dispatchRepository.disconnectAll()
         pitTecRepository.disconnectAll()
