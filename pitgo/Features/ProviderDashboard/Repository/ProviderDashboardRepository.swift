@@ -2,9 +2,16 @@
 //  ProviderDashboardRepository.swift
 //  pitgo
 //
-//  Lê o Provider próprio e invoca `set_my_provider_mode`/`set_my_provider_availability` (já
-//  existentes, ver contracts/account-provider-database.md "Provider settings" de `009`). Owner é
-//  sempre derivado de `auth.uid()` no servidor — nenhum ID é enviado pelo client.
+//  Lê o Provider próprio e invoca `set_my_provider_mode`/`set_provider_availability` (ver
+//  contracts/account-provider-database.md "Provider settings" de `009` — documentado lá como
+//  `set_my_provider_availability`, mas o schema cache atual só tem `set_provider_availability`,
+//  sem o "my_"; confirmado nesta sessão via chamada direta ao PostgREST, ver `setAvailability`).
+//  Owner é sempre derivado de `auth.uid()` no servidor — nenhum ID é enviado pelo client.
+//
+//  ATENÇÃO: `set_my_provider_mode` (usado por `setMode`) também não foi encontrado no schema cache
+//  na mesma verificação (nem a variante sem "my_") — a troca de Modalidade (Fixo/Móvel) em
+//  `ProviderDashboardView` está com o mesmo tipo de falha, mas o nome real da função não foi
+//  confirmado; precisa de acesso à secret key/painel do Supabase para achar o nome certo.
 //
 
 import Foundation
@@ -66,8 +73,11 @@ final class ProviderDashboardRepository {
 
     func setAvailability(_ available: Bool) async -> ProviderSettingsResult {
         do {
+            // `set_provider_availability` (sem "my_") — nome real da função no schema cache atual
+            // (confirmado via chamada direta ao PostgREST nesta sessão: `set_my_provider_availability`
+            // retorna PGRST202 "Could not find the function", com hint apontando para este nome).
             let rows: [Provider] = try await client
-                .rpc("set_my_provider_availability", params: SetAvailabilityParams(p_available: available))
+                .rpc("set_provider_availability", params: SetAvailabilityParams(p_available: available))
                 .execute()
                 .value
             guard let provider = rows.first else { return .unknown }
