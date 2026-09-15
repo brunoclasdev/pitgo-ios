@@ -80,31 +80,38 @@ enum GeocodingFailureReason: Hashable {
     case unknown
 }
 
-/// Editar qualquer campo do endereço retorna a `.unverified` (ver contracts/
-/// geocoding-edge-function.md "iOS state contract"). Somente `.matched`/`.confirmedDivergence` com
-/// `expiresAt` no futuro habilitam o submit.
+/// Editar qualquer campo do endereço retorna a `.unverified`. Somente `.matched`/
+/// `.confirmedDivergence` com `expiresAt` no futuro habilitam o submit.
+///
+/// Achado desta sessão (device físico real, iOS não completava nenhum cadastro): o Edge Function
+/// `geocode-provider-address` real (conferido no fonte do repo Android, mesmo backend) não usa mais
+/// fix de GPS do dispositivo — geocodifica só o texto do endereço via MapTiler e devolve um
+/// `verification_token` (string opaca), não mais um `verification_id` (UUID) como o design original
+/// de `009` previa. `device_distance_m`/`mismatch_confirmed` vêm hardcoded (0/true) no servidor
+/// atual, então `.diverged`/`.confirmedDivergence` na prática nunca mais acontecem — mantidos aqui
+/// só por paridade estrutural com o Android (que faz a mesma escolha), não removidos para não
+/// arrancar o diálogo de confirmação de divergência (`ProviderRegistrationView`) sem necessidade.
 enum ProviderAddressVerificationState: Equatable {
     case unverified
-    case locating
     case geocoding
-    case matched(verificationID: UUID, distanceMeters: Double, expiresAt: Date)
-    case diverged(verificationID: UUID, distanceMeters: Double, expiresAt: Date)
-    case confirmedDivergence(verificationID: UUID, distanceMeters: Double, expiresAt: Date)
+    case matched(token: String, expiresAt: Date)
+    case diverged(token: String, distanceMeters: Double, expiresAt: Date)
+    case confirmedDivergence(token: String, distanceMeters: Double, expiresAt: Date)
     case failure(reason: GeocodingFailureReason)
 
     var isUsableForSubmit: Bool {
         switch self {
-        case let .matched(_, _, expiresAt), let .confirmedDivergence(_, _, expiresAt):
+        case let .matched(_, expiresAt), let .confirmedDivergence(_, _, expiresAt):
             expiresAt > Date()
         default:
             false
         }
     }
 
-    var verificationID: UUID? {
+    var verificationToken: String? {
         switch self {
-        case let .matched(id, _, _), let .diverged(id, _, _), let .confirmedDivergence(id, _, _):
-            id
+        case let .matched(token, _), let .diverged(token, _, _), let .confirmedDivergence(token, _, _):
+            token
         default:
             nil
         }
@@ -164,8 +171,9 @@ struct NormalizedCompany {
     let cnpj: String
 }
 
-/// Usado apenas para montar o payload de `geocode-provider-address` — não é enviado à RPC de
-/// cadastro, que deriva texto/ponto do endereço da prova travada (`p_geocode_verification_id`).
+/// Usado tanto para o payload de `geocode-provider-address` quanto para `p_address` da RPC de
+/// cadastro (que grava o texto do endereço direto, junto do `verification_token` da prova — ver
+/// nota em `ProviderAddressVerificationState`).
 struct NormalizedAddress {
     let street: String
     let number: String
@@ -187,6 +195,7 @@ struct NormalizedOffer {
 
 struct ProviderRegistrationCommand {
     let company: NormalizedCompany
+    let address: NormalizedAddress
     let locationMode: ProviderLocationMode
     let offers: [NormalizedOffer]
 }
@@ -318,7 +327,7 @@ struct EditingContent {
     }
 
     var isVerifyingLocation: Bool {
-        addressVerification == .locating || addressVerification == .geocoding
+        addressVerification == .geocoding
     }
 
     var isInputEnabled: Bool { !isSubmitting && !isVerifyingLocation }
@@ -335,8 +344,13 @@ struct EditingContent {
     /// internos, sem significado de cobrança).
     var showsMobilePriceFields: Bool { draft.locationMode == .mobile }
 
+    /// A partir desta sessão, não exige mais `addressVerification.isUsableForSubmit` — no Android
+    /// (mesmo backend, `ProviderRegistrationViewModel.proceedWithValidation`/`geocodeAndSubmit`) o
+    /// botão nunca ficou preso a essa verificação: ela roda automaticamente no envio quando ainda
+    /// não foi feita (ou expirou), em vez de travar o botão até um toque manual em "Verificar
+    /// endereço". Ver `ProviderRegistrationViewModel.submit()`/`verifyAddressThenSubmit(command:)`.
     var canSubmit: Bool {
-        guard addressVerification.isUsableForSubmit, !isSubmitting else { return false }
+        guard !isSubmitting else { return false }
         if draft.locationMode == .fixed { return true }
         if case .content = implicitService { return true }
         return false

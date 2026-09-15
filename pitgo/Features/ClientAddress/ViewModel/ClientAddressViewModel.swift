@@ -7,12 +7,12 @@
 //  no momento de salvar (`DeviceLocationRepository`, `009`) — nunca inventada.
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class ClientAddressViewModel {
-    private(set) var state: ClientAddressUiState = .loading
+final class ClientAddressViewModel: ObservableObject {
+    @Published private(set) var state: ClientAddressUiState = .loading
 
     private let repository: ClientAddressRepository
     private let postalCodeLookupRepository: ViaCepAddressLookupRepository

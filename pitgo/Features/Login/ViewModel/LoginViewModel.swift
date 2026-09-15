@@ -5,12 +5,12 @@
 //  Delega a `SessionStore` — a única fronteira que chama `client.auth` (ver research.md §1).
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class LoginViewModel {
-    private(set) var state = LoginUiState()
+final class LoginViewModel: ObservableObject {
+    @Published private(set) var state = LoginUiState()
 
     private let sessionStore: SessionStore
     private var focusRequestID = 0

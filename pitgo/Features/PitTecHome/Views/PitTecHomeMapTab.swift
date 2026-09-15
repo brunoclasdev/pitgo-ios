@@ -13,7 +13,7 @@ import SwiftUI
 
 struct PitTecHomeMapTab: View {
     @Environment(\.pitGoTokens) private var tokens
-    let viewModel: PitTecHomeViewModel
+    @ObservedObject var viewModel: PitTecHomeViewModel
     let snapshot: ProviderSnapshot
 
     var body: some View {

@@ -10,15 +10,15 @@ import SwiftUI
 
 struct GarageView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @Environment(SessionStore.self) private var sessionStore
-    @State private var viewModel: GarageViewModel
+    @EnvironmentObject private var sessionStore: SessionStore
+    @StateObject private var viewModel: GarageViewModel
     @State private var isAddingVehicle = false
 
     private let repository: VehicleRepository
 
     init(repository: VehicleRepository, userID: UUID) {
         self.repository = repository
-        _viewModel = State(initialValue: GarageViewModel(repository: repository, userID: userID))
+        _viewModel = StateObject(wrappedValue: GarageViewModel(repository: repository, userID: userID))
     }
 
     var body: some View {
@@ -40,7 +40,7 @@ struct GarageView: View {
                 }
         }
         .task { await viewModel.load() }
-        .onChange(of: viewModel.confirmedPrimaryVehicle) { _, vehicle in
+        .onChange(of: viewModel.confirmedPrimaryVehicle) { vehicle in
             if let vehicle {
                 sessionStore.applyAuthoritativePrimaryVehicle(vehicle)
             }

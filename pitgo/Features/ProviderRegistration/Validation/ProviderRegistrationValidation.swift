@@ -10,18 +10,23 @@
 import Foundation
 
 enum ProviderRegistrationValidation {
-    /// Valida empresa, modalidade e ofertas para o submit final — a coordenada do endereço já foi
-    /// travada por uma verificação usável (`EditingContent.canSubmit`), então o texto do endereço
-    /// não é revalidado aqui.
+    /// Valida empresa, endereço (texto) e ofertas para o submit final. Até esta sessão, o texto do
+    /// endereço não era revalidado aqui — a suposição era que a coordenada já vinha travada por uma
+    /// verificação usável, então só o UUID da prova era enviado à RPC. Achado em device físico real:
+    /// a RPC `create_provider_registration` de verdade recebe o texto do endereço direto (`p_address`,
+    /// junto do `verification_token`), não um `p_geocode_verification_id` — ver nota em
+    /// `ProviderAddressVerificationState`. Por isso o endereço agora é validado igual aos outros
+    /// campos.
     static func validate(_ draft: ProviderRegistrationDraft) -> (command: ProviderRegistrationCommand?, errors: [ProviderField: ProviderFieldError]) {
         var errors: [ProviderField: ProviderFieldError] = [:]
         let company = validateCompany(draft.company, into: &errors)
+        let address = validateAddress(draft.address, into: &errors)
         let offers = validateOffers(draft.offers, into: &errors)
 
-        guard let company, let offers else {
+        guard let company, let address, let offers else {
             return (nil, errors)
         }
-        return (ProviderRegistrationCommand(company: company, locationMode: draft.locationMode, offers: offers), errors)
+        return (ProviderRegistrationCommand(company: company, address: address, locationMode: draft.locationMode, offers: offers), errors)
     }
 
     /// Valida os campos de endereço antes de disparar `geocode-provider-address` — usada pelo botão

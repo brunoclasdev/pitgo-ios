@@ -3,24 +3,24 @@
 //  pitgo
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class ProviderDashboardViewModel {
-    private(set) var state: ProviderDashboardUiState
-    private(set) var settingsFailure: ProviderSettingsFailureReason?
-    private(set) var sessionExpired = false
+final class ProviderDashboardViewModel: ObservableObject {
+    @Published private(set) var state: ProviderDashboardUiState
+    @Published private(set) var settingsFailure: ProviderSettingsFailureReason?
+    @Published private(set) var sessionExpired = false
     /// Solicitação pendente detectada para este provider — a View navega automaticamente ao
     /// `ProviderIncomingRequestView` quando este campo deixa de ser `nil` (`013`).
-    private(set) var incomingAppointmentID: UUID?
+    @Published private(set) var incomingAppointmentID: UUID?
     /// Atendimento já reservado (`ACCEPTED`/`IN_PROGRESS`) detectado ao (re)abrir o dashboard — cobre
     /// a retomada do lado provider (contracts/mobile-dispatch-ui-navigation.md "Retomada",
     /// `.providerTracking`), já que o app pode ter sido encerrado enquanto o atendimento seguia.
-    private(set) var resumedTrackingAppointmentID: UUID?
+    @Published private(set) var resumedTrackingAppointmentID: UUID?
     /// Chamada PitTec (pendente OU já reservada) detectada para este provider — `015`. Uma única
     /// rota (`PitTecIncomingRequestView`) trata os dois casos internamente, então basta um sinal.
-    private(set) var pitTecAppointmentToOpen: UUID?
+    @Published private(set) var pitTecAppointmentToOpen: UUID?
 
     let discoveryTracker: ProviderDiscoveryTracker
 
@@ -43,6 +43,9 @@ final class ProviderDashboardViewModel {
     /// segurança, nunca a única fonte de verdade.
     private var pollTask: Task<Void, Never>?
     private let pollInterval: TimeInterval = 5
+    /// Repassa as mudanças de `discoveryTracker` — a View lê `discoveryTracker.state` diretamente, e
+    /// sem isto `objectWillChange` nunca dispararia só por causa dele.
+    private var cancellables = Set<AnyCancellable>()
 
     init(
         repository: ProviderDashboardRepository,
@@ -57,6 +60,9 @@ final class ProviderDashboardViewModel {
         accountID = snapshot.accountID
         state = .content(snapshot)
         discoveryTracker = ProviderDiscoveryTracker(locationRepository: locationRepository, dispatchRepository: dispatchRepository)
+        discoveryTracker.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
     /// Chamado uma vez em `.task` — sincroniza o tracker com a disponibilidade atual e passa a
@@ -206,9 +212,10 @@ final class ProviderDashboardViewModel {
         guard let snapshot = currentSnapshot, snapshot.provider.locationMode != mode else { return }
         settingsFailure = nil
         settingsTask?.cancel()
+        let available = snapshot.provider.available
         settingsTask = Task { [weak self] in
             guard let self else { return }
-            let result = await repository.setMode(mode)
+            let result = await repository.updateSettings(available: available, locationMode: mode)
             if Task.isCancelled { return }
             apply(result)
         }
@@ -218,9 +225,10 @@ final class ProviderDashboardViewModel {
         guard let snapshot = currentSnapshot, snapshot.provider.available != available else { return }
         settingsFailure = nil
         settingsTask?.cancel()
+        let locationMode = snapshot.provider.locationMode
         settingsTask = Task { [weak self] in
             guard let self else { return }
-            let result = await repository.setAvailability(available)
+            let result = await repository.updateSettings(available: available, locationMode: locationMode)
             if Task.isCancelled { return }
             apply(result)
         }
@@ -228,8 +236,9 @@ final class ProviderDashboardViewModel {
 
     private func apply(_ result: ProviderSettingsResult) {
         switch result {
-        case let .success(provider):
-            state = .content(makeSnapshot(replacing: provider))
+        case let .success(update):
+            guard let snapshot = currentSnapshot else { return }
+            state = .content(makeSnapshot(replacing: snapshot.provider.applying(update)))
             syncTracker()
         case .sessionExpired:
             sessionExpired = true

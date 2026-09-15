@@ -3,14 +3,14 @@
 //  pitgo
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class ProviderSignUpViewModel {
-    private(set) var state = ProviderSignUpUiState()
+final class ProviderSignUpViewModel: ObservableObject {
+    @Published private(set) var state = ProviderSignUpUiState()
     /// Definido somente quando `state.submission == .success`.
-    private(set) var completedUserID: UUID?
+    @Published private(set) var completedUserID: UUID?
 
     private let repository: ProviderSignUpRepository
     private var focusRequestID = 0

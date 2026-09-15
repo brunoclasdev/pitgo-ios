@@ -9,12 +9,12 @@ import SwiftUI
 
 struct LoginView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: LoginViewModel
+    @StateObject private var viewModel: LoginViewModel
     @FocusState private var focusedField: SignUpField?
     @State private var isPasswordVisible = false
 
     init(sessionStore: SessionStore) {
-        _viewModel = State(initialValue: LoginViewModel(sessionStore: sessionStore))
+        _viewModel = StateObject(wrappedValue: LoginViewModel(sessionStore: sessionStore))
     }
 
     var body: some View {
@@ -36,7 +36,7 @@ struct LoginView: View {
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Entrar")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: viewModel.state.focusRequest?.requestID) { _, _ in
+        .onChange(of: viewModel.state.focusRequest?.requestID) { _ in
             if let request = viewModel.state.focusRequest {
                 focusedField = request.field
             }

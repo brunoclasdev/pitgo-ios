@@ -10,13 +10,13 @@
 //  por `raw_user_meta_data`.
 //
 
+import Combine
 import Foundation
 import Supabase
 
-@Observable
 @MainActor
-final class SessionStore {
-    private(set) var state: AppSessionState = .initializing
+final class SessionStore: ObservableObject {
+    @Published private(set) var state: AppSessionState = .initializing
 
     private let client: SupabaseClient
     private let accountContextRepository: AccountContextRepository

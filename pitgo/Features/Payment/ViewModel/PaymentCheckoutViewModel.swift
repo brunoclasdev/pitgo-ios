@@ -11,6 +11,7 @@
 //  de suas próprias RPCs de despacho.
 //
 
+import Combine
 import Foundation
 
 enum PaymentCheckoutUiState: Equatable {
@@ -30,10 +31,9 @@ enum PaymentCheckoutUiState: Equatable {
     case failure
 }
 
-@Observable
 @MainActor
-final class PaymentCheckoutViewModel {
-    private(set) var state: PaymentCheckoutUiState = .loadingAmount
+final class PaymentCheckoutViewModel: ObservableObject {
+    @Published private(set) var state: PaymentCheckoutUiState = .loadingAmount
 
     /// Reaproveitado pelo chamador como `search_id`/`p_request_id` da RPC de despacho após
     /// `.approved` — auto-gerado para `MOBILE_SEQUENTIAL` (pagamento antes da busca, inalterado);

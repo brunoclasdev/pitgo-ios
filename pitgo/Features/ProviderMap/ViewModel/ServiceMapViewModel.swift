@@ -7,13 +7,13 @@
 //  serviço/viewport antigo são descartadas (ver data-model.md "ServiceMapResult").
 //
 
+import Combine
 import CoreLocation
 import Foundation
 
-@Observable
 @MainActor
-final class ServiceMapViewModel {
-    private(set) var state: ServiceMapUiState = .loading
+final class ServiceMapViewModel: ObservableObject {
+    @Published private(set) var state: ServiceMapUiState = .loading
 
     private let serviceID: UUID
     private let repository: ServiceMapRepository

@@ -7,20 +7,20 @@
 //  `ClientMobileDispatchViewModel` (`013`).
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class PitTecClientViewModel {
-    private(set) var state: PitTecClientUiState = .restoring
+final class PitTecClientViewModel: ObservableObject {
+    @Published private(set) var state: PitTecClientUiState = .restoring
     /// Duas posições correntes para a linha estimada (FR-022/FR-023) — `nil` antes do aceite ou
     /// enquanto a leitura ainda não chegou.
-    private(set) var routeContext: PitTecRouteContext?
+    @Published private(set) var routeContext: PitTecRouteContext?
     /// `018` FR-015/FR-017 — ver nota equivalente em `ClientMobileDispatchViewModel`.
-    private(set) var refundStatus: PaymentStatus?
+    @Published private(set) var refundStatus: PaymentStatus?
     /// `020` FR-001/FR-002 — o mesmo fix já usado por `callPitTec`, exposto para a View centralizar
     /// o mapa na posição do cliente em qualquer estado de descoberta/busca, com ou sem PitTec.
-    private(set) var lastFix: DeviceLocationFix?
+    @Published private(set) var lastFix: DeviceLocationFix?
 
     private let serviceID: UUID
     private let repository: PitTecRepository

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ClientAddressView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: ClientAddressViewModel
+    @StateObject private var viewModel: ClientAddressViewModel
 
     let onFinished: () -> Void
     let onSessionExpired: () -> Void
@@ -20,7 +20,7 @@ struct ClientAddressView: View {
         onFinished: @escaping () -> Void,
         onSessionExpired: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: ClientAddressViewModel(repository: repository, locationRepository: locationRepository))
+        _viewModel = StateObject(wrappedValue: ClientAddressViewModel(repository: repository, locationRepository: locationRepository))
         self.onFinished = onFinished
         self.onSessionExpired = onSessionExpired
     }
@@ -30,7 +30,7 @@ struct ClientAddressView: View {
             .navigationTitle("Endereço")
             .navigationBarTitleDisplayMode(.inline)
             .task { viewModel.load() }
-            .onChange(of: isSessionExpired) { _, expired in
+            .onChange(of: isSessionExpired) { expired in
                 if expired { onSessionExpired() }
             }
     }

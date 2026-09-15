@@ -7,13 +7,13 @@
 //  mesmo sem novo evento. Conecta em `.onAppear`/some, desconecta em `.onDisappear`/troca de sessão.
 //
 
+import Combine
 import CoreLocation
 import Foundation
 
-@Observable
 @MainActor
-final class AppointmentTrackingViewModel {
-    private(set) var marker: AppointmentMarkerState = .unavailable
+final class AppointmentTrackingViewModel: ObservableObject {
+    @Published private(set) var marker: AppointmentMarkerState = .unavailable
 
     private let repository: AppointmentTrackingRepository
     private var currentVersion: Int64 = -1

@@ -11,13 +11,13 @@ import SwiftUI
 
 struct AppointmentTrackingView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: AppointmentTrackingViewModel
+    @StateObject private var viewModel: AppointmentTrackingViewModel
 
     let appointmentID: UUID
 
     init(appointmentID: UUID, repository: AppointmentTrackingRepository) {
         self.appointmentID = appointmentID
-        _viewModel = State(initialValue: AppointmentTrackingViewModel(repository: repository))
+        _viewModel = StateObject(wrappedValue: AppointmentTrackingViewModel(repository: repository))
     }
 
     var body: some View {

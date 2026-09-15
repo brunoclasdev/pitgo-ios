@@ -2,19 +2,19 @@
 //  ProviderTrackingStateRepository.swift
 //  pitgo
 //
-//  Controller `@Observable` de escopo de processo (mesmo padrão de `ProviderMigrationCoordinator`)
+//  Controller `ObservableObject` de escopo de processo (mesmo padrão de `ProviderMigrationCoordinator`)
 //  que possui o `ProviderLocationTracker` e decide `ProviderTrackingState`. Construído uma vez em
 //  `PitGoRootView`. `SessionStore` sinaliza `stop()` antes de limpar uma sessão autenticada (ver
 //  contracts/navigation-session.md "Tracking cleanup").
 //
 
+import Combine
 import CoreLocation
 import Foundation
 
-@Observable
 @MainActor
-final class ProviderTrackingStateRepository {
-    private(set) var state: ProviderTrackingState = .stopped
+final class ProviderTrackingStateRepository: ObservableObject {
+    @Published private(set) var state: ProviderTrackingState = .stopped
 
     private let locationRepository: DeviceLocationRepository
     private let publishRepository: ProviderLocationRepository
@@ -86,6 +86,9 @@ final class ProviderTrackingStateRepository {
         case .publisherConflict:
             stop()
             state = .degraded(reason: .publisherConflict)
+        case .ineligible:
+            stop()
+            state = .degraded(reason: .notEligible)
         case .sessionExpired:
             stop()
             state = .degraded(reason: .sessionExpired)

@@ -13,7 +13,7 @@ import SwiftUI
 
 struct PitTecClientView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: PitTecClientViewModel
+    @StateObject private var viewModel: PitTecClientViewModel
     @State private var showCancellationSheet = false
     /// `021`/migration `20260913010000`: o checkout só abre DEPOIS que o cliente confirma o
     /// orçamento (`AWAITING_PAYMENT`), nunca antes de `startDispatch` — a busca em si não exige
@@ -38,7 +38,7 @@ struct PitTecClientView: View {
         onSessionExpired: @escaping () -> Void
     ) {
         self.serviceID = serviceID
-        _viewModel = State(initialValue: PitTecClientViewModel(
+        _viewModel = StateObject(wrappedValue: PitTecClientViewModel(
             serviceID: serviceID,
             repository: repository,
             paymentRepository: paymentRepository,
@@ -68,7 +68,7 @@ struct PitTecClientView: View {
             }
             .task { viewModel.start() }
             .onDisappear { viewModel.stop() }
-            .onChange(of: isSessionExpired) { _, expired in
+            .onChange(of: isSessionExpired) { expired in
                 if expired { onSessionExpired() }
             }
             .sheet(isPresented: $showCancellationSheet) {

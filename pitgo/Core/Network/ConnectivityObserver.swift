@@ -7,6 +7,7 @@
 //  chamada de rede em andamento.
 //
 
+import Combine
 import Foundation
 import Network
 
@@ -15,10 +16,9 @@ enum ConnectivityStatus: Equatable {
     case offline
 }
 
-@Observable
 @MainActor
-final class ConnectivityObserver {
-    private(set) var status: ConnectivityStatus = .online
+final class ConnectivityObserver: ObservableObject {
+    @Published private(set) var status: ConnectivityStatus = .online
 
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "com.pitgo.connectivity-observer")

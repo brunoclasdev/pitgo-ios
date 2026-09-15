@@ -11,7 +11,7 @@ import SwiftUI
 
 struct ProviderMigrationStartView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: ProviderMigrationStartViewModel
+    @StateObject private var viewModel: ProviderMigrationStartViewModel
 
     let onSwitchAccount: () -> Void
 
@@ -20,7 +20,7 @@ struct ProviderMigrationStartView: View {
         coordinator: ProviderMigrationCoordinator,
         onSwitchAccount: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: ProviderMigrationStartViewModel(repository: repository, coordinator: coordinator))
+        _viewModel = StateObject(wrappedValue: ProviderMigrationStartViewModel(repository: repository, coordinator: coordinator))
         self.onSwitchAccount = onSwitchAccount
     }
 

@@ -10,7 +10,7 @@ import SwiftUI
 
 struct ProviderDashboardView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: ProviderDashboardViewModel
+    @StateObject private var viewModel: ProviderDashboardViewModel
     @State private var showSignOutConfirmation = false
     @State private var path: [PitGoRoute] = []
 
@@ -33,7 +33,7 @@ struct ProviderDashboardView: View {
         locationRepository: DeviceLocationRepository,
         onSignOut: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: ProviderDashboardViewModel(
+        _viewModel = StateObject(wrappedValue: ProviderDashboardViewModel(
             repository: repository,
             snapshot: snapshot,
             dispatchRepository: dispatchRepository,
@@ -88,20 +88,20 @@ struct ProviderDashboardView: View {
                         EmptyView()
                     }
                 }
-                .onChange(of: viewModel.sessionExpired) { _, expired in
+                .onChange(of: viewModel.sessionExpired) { expired in
                     if expired { onSignOut() }
                 }
-                .onChange(of: viewModel.incomingAppointmentID) { _, appointmentID in
+                .onChange(of: viewModel.incomingAppointmentID) { appointmentID in
                     guard let appointmentID, path.isEmpty else { return }
                     viewModel.acknowledgeIncoming()
                     path.append(.providerRequest(appointmentID: appointmentID))
                 }
-                .onChange(of: viewModel.resumedTrackingAppointmentID) { _, appointmentID in
+                .onChange(of: viewModel.resumedTrackingAppointmentID) { appointmentID in
                     guard let appointmentID, path.isEmpty else { return }
                     viewModel.acknowledgeResumedTracking()
                     path.append(.providerAppointmentTracking(appointmentID: appointmentID))
                 }
-                .onChange(of: viewModel.pitTecAppointmentToOpen) { _, appointmentID in
+                .onChange(of: viewModel.pitTecAppointmentToOpen) { appointmentID in
                     guard let appointmentID, path.isEmpty else { return }
                     viewModel.acknowledgePitTecAppointment()
                     path.append(.pitTecProviderRequest(appointmentID: appointmentID))

@@ -7,12 +7,12 @@
 //  descarta esta View/ViewModel (mesma garantia estrutural de `VehicleFormViewModel` em `006`).
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class ProviderRegistrationViewModel {
-    private(set) var state: ProviderRegistrationUiState = .loading
+final class ProviderRegistrationViewModel: ObservableObject {
+    @Published private(set) var state: ProviderRegistrationUiState = .loading
 
     private let repository: ProviderRegistrationRepository
     private let verificationRepository: ProviderAddressVerificationRepository
@@ -361,10 +361,7 @@ final class ProviderRegistrationViewModel {
             return
         }
 
-        // Um único estado cobre a aquisição do fix e a chamada à Edge Function — o Repository não
-        // expõe um callback intermediário entre as duas etapas (ver
-        // `ProviderAddressVerificationRepository.verify`).
-        updateEditing { $0.addressVerification = .locating }
+        updateEditing { $0.addressVerification = .geocoding }
         verificationTask?.cancel()
         verificationTask = Task { [weak self] in
             guard let self else { return }
@@ -376,21 +373,21 @@ final class ProviderRegistrationViewModel {
 
     private func apply(_ result: ProviderAddressVerificationRepository.VerifyResult) {
         switch result {
-        case let .matched(id, distance, expiresAt):
-            updateEditing { $0.addressVerification = .matched(verificationID: id, distanceMeters: distance, expiresAt: expiresAt) }
-        case let .diverged(id, distance, expiresAt):
-            updateEditing { $0.addressVerification = .diverged(verificationID: id, distanceMeters: distance, expiresAt: expiresAt) }
+        case let .matched(token, expiresAt):
+            updateEditing { $0.addressVerification = .matched(token: token, expiresAt: expiresAt) }
         case let .failure(reason):
             updateEditing { $0.addressVerification = .failure(reason: reason) }
         }
     }
 
-    /// Confirmação explícita exigida quando a distância excede 500m (FR-015B).
+    /// Confirmação explícita exigida quando a distância excede 500m (FR-015B) — na prática nunca
+    /// mais é alcançada (ver nota em `ProviderAddressVerificationState`), mantida por paridade
+    /// estrutural com o Android.
     func confirmDivergence() {
         guard case let .editing(content) = state,
-              case let .diverged(id, distance, expiresAt) = content.addressVerification,
+              case let .diverged(token, distance, expiresAt) = content.addressVerification,
               expiresAt > Date() else { return }
-        updateEditing { $0.addressVerification = .confirmedDivergence(verificationID: id, distanceMeters: distance, expiresAt: expiresAt) }
+        updateEditing { $0.addressVerification = .confirmedDivergence(token: token, distanceMeters: distance, expiresAt: expiresAt) }
     }
 
     // MARK: - Offers
@@ -489,19 +486,60 @@ final class ProviderRegistrationViewModel {
         let (command, errors) = ProviderRegistrationValidation.validate(content.draft)
         updateEditing { $0.fieldErrors = errors }
 
-        guard let command,
-              let verificationID = content.addressVerification.verificationID else {
-            focusRequestID += 1
-            let offerOrder = content.draft.offers.map(\.id)
-            if let field = ProviderRegistrationValidation.firstInvalidField(errors: errors, offerOrder: offerOrder) {
-                let requestID = focusRequestID
-                updateEditing { $0.focusRequest = ProviderFocusRequest(field: field, requestID: requestID) }
-            }
+        guard let command else {
+            focusFirstInvalid(errors: errors, offerOrder: content.draft.offers.map(\.id))
             return
         }
 
-        let divergenceConfirmed = content.addressVerification.isDivergenceConfirmed
+        if content.addressVerification.isUsableForSubmit, let token = content.addressVerification.verificationToken {
+            performSubmit(command: command, verificationToken: token)
+            return
+        }
 
+        // Endereço ainda não verificado (ou a prova expirou) — verifica na hora em vez de exigir
+        // que o usuário tenha tocado em "Verificar endereço" antes (mesma UX já usada no Android,
+        // que nunca travou o botão nisso: `ProviderRegistrationViewModel.geocodeAndSubmit`).
+        verifyAddressThenSubmit(command: command)
+    }
+
+    private func focusFirstInvalid(errors: [ProviderField: ProviderFieldError], offerOrder: [UUID]) {
+        focusRequestID += 1
+        if let field = ProviderRegistrationValidation.firstInvalidField(errors: errors, offerOrder: offerOrder) {
+            let requestID = focusRequestID
+            updateEditing { $0.focusRequest = ProviderFocusRequest(field: field, requestID: requestID) }
+        }
+    }
+
+    /// Roda a mesma verificação de `verifyAddress()` e só segue para o envio de fato quando ela
+    /// resolve `.matched` — `.diverged` continua exigindo confirmação explícita do usuário
+    /// (`confirmDivergence()`, FR-015B, já disparada pelo `onChange` da View) e `.failure` mostra o
+    /// próprio erro; nenhum dos dois avança sozinho.
+    private func verifyAddressThenSubmit(command: ProviderRegistrationCommand) {
+        guard case let .editing(content) = state else { return }
+        let (normalized, addressErrors) = ProviderRegistrationValidation.validateAddressForVerification(content.draft.address)
+        guard let normalized else {
+            updateEditing { $0.fieldErrors.merge(addressErrors) { _, new in new } }
+            focusFirstInvalid(errors: addressErrors, offerOrder: [])
+            return
+        }
+
+        updateEditing { $0.addressVerification = .geocoding; $0.submission = .submitting }
+        verificationTask?.cancel()
+        verificationTask = Task { [weak self] in
+            guard let self else { return }
+            let result = await verificationRepository.verify(address: normalized)
+            if Task.isCancelled { return }
+            apply(result)
+            guard case let .editing(refreshed) = state else { return }
+            if case let .matched(token, _) = refreshed.addressVerification {
+                performSubmit(command: command, verificationToken: token)
+            } else {
+                updateEditing { $0.submission = .idle }
+            }
+        }
+    }
+
+    private func performSubmit(command: ProviderRegistrationCommand, verificationToken: String) {
         updateEditing { $0.submission = .submitting }
         submissionTask?.cancel()
         submissionTask = Task { [weak self] in
@@ -509,8 +547,7 @@ final class ProviderRegistrationViewModel {
             let result = await repository.submit(
                 command,
                 accountID: accountID,
-                geocodeVerificationID: verificationID,
-                divergenceConfirmed: divergenceConfirmed
+                verificationToken: verificationToken
             )
             if Task.isCancelled { return }
             apply(result)

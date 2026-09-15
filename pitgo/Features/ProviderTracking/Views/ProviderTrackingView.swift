@@ -11,7 +11,7 @@ import SwiftUI
 
 struct ProviderTrackingView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: ProviderTrackingViewModel
+    @StateObject private var viewModel: ProviderTrackingViewModel
 
     init(
         appointmentID: UUID,
@@ -19,7 +19,7 @@ struct ProviderTrackingView: View {
         stateRepository: ProviderTrackingStateRepository,
         dashboardRepository: ProviderDashboardRepository
     ) {
-        _viewModel = State(initialValue: ProviderTrackingViewModel(
+        _viewModel = StateObject(wrappedValue: ProviderTrackingViewModel(
             appointmentID: appointmentID,
             accountID: accountID,
             stateRepository: stateRepository,

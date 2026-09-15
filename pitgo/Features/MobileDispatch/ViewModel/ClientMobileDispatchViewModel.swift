@@ -16,18 +16,18 @@
 //  servidor e é retomada normalmente se a mesma tela for reaberta).
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class ClientMobileDispatchViewModel {
-    private(set) var state: ClientMobileDispatchUiState = .restoring
+final class ClientMobileDispatchViewModel: ObservableObject {
+    @Published private(set) var state: ClientMobileDispatchUiState = .restoring
     /// Tick de 1s só para recompor o countdown (`014` FR-001) — nunca decide uma transição sozinho.
-    private(set) var localNow: Date = .init()
+    @Published private(set) var localNow: Date = .init()
     /// `018` FR-015/FR-017 — preenchido depois de um cancelamento/exaustão com pagamento aprovado
     /// associado; `nil` quando não havia nada a estornar. Não há trigger/cron server-side que chame
     /// `mp-refund-payment` sozinho (confirmado nesta sessão) — o app dispara ao ver `REFUND_PENDING`.
-    private(set) var refundStatus: PaymentStatus?
+    @Published private(set) var refundStatus: PaymentStatus?
 
     private let repository: MobileDispatchRepository
     private let paymentRepository: PaymentRepository

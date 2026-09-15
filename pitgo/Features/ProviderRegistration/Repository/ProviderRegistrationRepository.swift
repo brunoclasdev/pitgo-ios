@@ -3,10 +3,18 @@
 //  pitgo
 //
 //  Consulta o agregado próprio e invoca somente a RPC transacional `create_provider_registration`
-//  já existente e compartilhada com o Android (ver contracts/account-provider-database.md de `009`).
-//  Nenhum parâmetro de owner/provider é enviado pelo client; nenhum `Error` bruto, mensagem,
-//  `details`, header ou payload chega ao ViewModel — somente resultados de domínio sanitizados (ver
-//  research.md §10). Catálogo é delegado a `ServiceCatalogRepository` (compartilhado com a Home).
+//  já existente e compartilhada com o Android. Nenhum parâmetro de owner/provider é enviado pelo
+//  client; nenhum `Error` bruto, mensagem, `details`, header ou payload chega ao ViewModel — somente
+//  resultados de domínio sanitizados. Catálogo é delegado a `ServiceCatalogRepository` (compartilhado
+//  com a Home).
+//
+//  ACHADO CRÍTICO desta sessão (reproduzido em device físico real: nenhum cadastro completava no
+//  iOS): `contracts/account-provider-database.md` (`009`) documenta a RPC recebendo
+//  `p_geocode_verification_id` (UUID); a função real recebe `p_address` (texto do endereço +
+//  `verification_token`) — confirmado lendo o fonte da função no repo Android (mesmo backend) e via
+//  chamada direta ao PostgREST. O `outcome` de sucesso também só cobre `CREATED`/`ALREADY_REGISTERED`
+//  — toda falha de domínio é uma exceção Postgres, nunca um `outcome` fechado (ver
+//  `CreateProviderRegistrationResult`).
 //
 //  IMPORTANTE (`009`): `providers.id` (identidade estável da empresa) e `providers.account_id`
 //  (owner Auth substituível) nunca devem ser confundidos — o agregado próprio é sempre localizado
@@ -150,8 +158,7 @@ final class ProviderRegistrationRepository {
     func submit(
         _ command: ProviderRegistrationCommand,
         accountID: UUID,
-        geocodeVerificationID: UUID,
-        divergenceConfirmed: Bool
+        verificationToken: String
     ) async -> SubmissionResult {
         let params = CreateProviderRegistrationParams(
             p_provider: ProviderPayload(
@@ -162,6 +169,17 @@ final class ProviderRegistrationRepository {
                 cnpj: command.company.cnpj,
                 location_mode: command.locationMode.rawValue
             ),
+            p_address: AddressPayload(
+                street: command.address.street,
+                number: command.address.number,
+                neighborhood: command.address.neighborhood,
+                zip_code: command.address.zipCode,
+                city: command.address.city,
+                state: command.address.state,
+                country: command.address.country,
+                complement: command.address.complement,
+                verification_token: verificationToken
+            ),
             p_offers: command.offers.map {
                 OfferPayload(
                     service_id: $0.serviceID,
@@ -170,9 +188,7 @@ final class ProviderRegistrationRepository {
                     description: $0.description,
                     is_free: $0.isFree
                 )
-            },
-            p_geocode_verification_id: geocodeVerificationID,
-            p_divergence_confirmed: divergenceConfirmed
+            }
         )
 
         do {
@@ -181,28 +197,11 @@ final class ProviderRegistrationRepository {
                 .execute()
                 .value
 
-            switch result.outcome {
-            case .created, .alreadyRegistered:
-                switch await fetchOwnAggregate(accountID: accountID) {
-                case let .complete(summary):
-                    return result.outcome == .created ? .created(summary) : .alreadyRegistered(summary)
-                default:
-                    return .contract
-                }
-            case .geocodeExpired:
-                return .geocodeExpired
-            case .divergenceConfirmationRequired:
-                return .divergenceConfirmationRequired
-            case .catalogChanged:
-                return .catalogChanged
-            case .emailUnavailable:
-                return .emailUnavailable
-            case .cnpjUnavailable:
-                return .cnpjUnavailable
-            case .invalidInput:
-                return .invalidInput
-            case .sessionBlocked:
-                return .sessionExpired
+            switch await fetchOwnAggregate(accountID: accountID) {
+            case let .complete(summary):
+                return result.outcome == .created ? .created(summary) : .alreadyRegistered(summary)
+            default:
+                return .contract
             }
         } catch {
             return classify(error)
@@ -232,6 +231,10 @@ final class ProviderRegistrationRepository {
                 return .contract
             case "42501":
                 return .sessionExpired
+            case "23503", "P0002":
+                // Paridade defensiva com o Android (`classifyFailure`): serviço/categoria referenciado
+                // na oferta sumiu do catálogo entre a escolha e o envio.
+                return .catalogChanged
             default:
                 return .unknown
             }

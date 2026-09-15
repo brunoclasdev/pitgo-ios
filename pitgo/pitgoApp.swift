@@ -10,7 +10,7 @@ import SwiftUI
 
 @main
 struct pitgoApp: App {
-    @State private var sessionStore = SessionStore(client: SupabaseClientProvider.client)
+    @StateObject private var sessionStore = SessionStore(client: SupabaseClientProvider.client)
     @AppearancePreference private var appearance
 
     init() {
@@ -28,7 +28,7 @@ struct pitgoApp: App {
     var body: some Scene {
         WindowGroup {
             PitGoRootView(client: SupabaseClientProvider.client)
-                .environment(sessionStore)
+                .environmentObject(sessionStore)
                 .task { sessionStore.start() }
                 .preferredColorScheme(appearance.colorScheme)
         }

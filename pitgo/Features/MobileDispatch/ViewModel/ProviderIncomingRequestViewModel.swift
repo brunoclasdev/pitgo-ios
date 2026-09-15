@@ -9,15 +9,15 @@
 //  countdown").
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class ProviderIncomingRequestViewModel {
-    private(set) var state: ProviderDispatchUiState = .noIncoming
+final class ProviderIncomingRequestViewModel: ObservableObject {
+    @Published private(set) var state: ProviderDispatchUiState = .noIncoming
     /// Referência local só para recalcular o texto do countdown a cada segundo — nunca decide uma
     /// transição de estado sozinha.
-    private(set) var localNow: Date = .init()
+    @Published private(set) var localNow: Date = .init()
 
     private let repository: MobileDispatchRepository
     private let providerID: UUID

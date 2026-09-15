@@ -274,6 +274,9 @@
         }
       }
     },
+    "As informações da corrida aparecem aqui depois de aceitar uma solicitação." : {
+
+    },
     "As senhas não coincidem." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -895,6 +898,9 @@
     "CVV" : {
 
     },
+    "Dados da corrida" : {
+
+    },
     "Dados da empresa" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -994,6 +1000,15 @@
         }
       }
     },
+    "Desligado, você fica invisível para novos clientes — atendimentos já aceitos continuam normalmente." : {
+
+    },
+    "Disponível" : {
+
+    },
+    "Disponível para atendimento" : {
+
+    },
     "Disponível para novos atendimentos" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1070,6 +1085,9 @@
           }
         }
       }
+    },
+    "Em manutenção" : {
+
     },
     "Encerrando…" : {
       "extractionState" : "manual",
@@ -1179,7 +1197,7 @@
     "Endereço salvo" : {
 
     },
-    "Endereço verificado (%lld m do dispositivo)" : {
+    "Endereço verificado" : {
 
     },
     "Entrar" : {
@@ -1380,6 +1398,9 @@
           }
         }
       }
+    },
+    "Indisponível" : {
+
     },
     "Informe a marca do veículo." : {
 
@@ -1757,6 +1778,9 @@
           }
         }
       }
+    },
+    "Não foi possível carregar o valor configurado agora." : {
+
     },
     "Não foi possível carregar os dados da empresa." : {
       "extractionState" : "manual",
@@ -2151,6 +2175,9 @@
       }
     },
     "O Renavam deve conter 11 dígitos." : {
+
+    },
+    "Obtendo localização…" : {
 
     },
     "Obtendo sua localização…" : {
@@ -2962,6 +2989,9 @@
           }
         }
       }
+    },
+    "Valores" : {
+
     },
     "Veículo selecionado" : {
       "extractionState" : "manual",

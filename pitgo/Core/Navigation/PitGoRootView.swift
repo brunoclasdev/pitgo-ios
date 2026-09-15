@@ -13,7 +13,7 @@ import Supabase
 import SwiftUI
 
 struct PitGoRootView: View {
-    @Environment(SessionStore.self) private var sessionStore
+    @EnvironmentObject private var sessionStore: SessionStore
 
     private let client: SupabaseClient
     private let accountRepository: AccountRepository
@@ -33,10 +33,13 @@ struct PitGoRootView: View {
     private let locationRepository: DeviceLocationRepository
     private let trackingStateRepository: ProviderTrackingStateRepository
     private let onboardingStore = VehicleOnboardingStore()
-    private let migrationCoordinator = ProviderMigrationCoordinator()
+    @StateObject private var migrationCoordinator = ProviderMigrationCoordinator()
     private let dispatchResumeCoordinator: DispatchResumeCoordinator
 
     @State private var isOnboardingPending = false
+    /// Cópia manual do valor anterior de `isProviderReady` — `onChange(of:)` de um único parâmetro
+    /// (compatível com iOS 16) não entrega o valor antigo como a variante de dois parâmetros.
+    @State private var wasProviderReady = false
 
     init(client: SupabaseClient) {
         self.client = client
@@ -57,7 +60,7 @@ struct PitGoRootView: View {
 
         let sharedLocationRepository = DeviceLocationRepository()
         locationRepository = sharedLocationRepository
-        addressVerificationRepository = ProviderAddressVerificationRepository(client: client, locationRepository: sharedLocationRepository)
+        addressVerificationRepository = ProviderAddressVerificationRepository(client: client)
         trackingStateRepository = ProviderTrackingStateRepository(
             locationRepository: sharedLocationRepository,
             publishRepository: ProviderLocationRepository(client: client)
@@ -150,7 +153,7 @@ struct PitGoRootView: View {
             }
         }
         .pitGoTheme()
-        .onChange(of: sessionAuthenticationKey) { _, _ in
+        .onChange(of: sessionAuthenticationKey) { _ in
             if case let .authenticatedClient(snapshot) = sessionStore.state {
                 // Uma pendência local (`UserDefaults`) pode sobreviver a uma criação já concluída em
                 // outra sessão/dispositivo — o snapshot autoritativo do servidor sempre prevalece
@@ -159,10 +162,12 @@ struct PitGoRootView: View {
                 isOnboardingPending = snapshot.primaryVehicle == nil && onboardingStore.isPending(snapshot.userID)
             }
         }
-        .onChange(of: isProviderReady) { wasReady, isReady in
-            if wasReady, !isReady {
+        .task { wasProviderReady = isProviderReady }
+        .onChange(of: isProviderReady) { isReady in
+            if wasProviderReady, !isReady {
                 trackingStateRepository.stop()
             }
+            wasProviderReady = isReady
         }
     }
 
@@ -180,7 +185,7 @@ struct PitGoRootView: View {
 }
 
 private struct UnauthenticatedFlow: View {
-    @Environment(SessionStore.self) private var sessionStore
+    @EnvironmentObject private var sessionStore: SessionStore
     @State private var path: [UnauthenticatedRoute] = []
 
     let client: SupabaseClient
@@ -230,7 +235,7 @@ private struct UnauthenticatedFlow: View {
 /// `VehicleFormView(.onboarding)` (ver contracts/navigation.md "Signup and onboarding flow" de
 /// `006`).
 private struct OnboardingFlow: View {
-    @Environment(SessionStore.self) private var sessionStore
+    @EnvironmentObject private var sessionStore: SessionStore
 
     let vehicleRepository: VehicleRepository
     let onResolved: () -> Void
@@ -445,5 +450,5 @@ private struct ClientMainTabView: View {
 
 #Preview {
     PitGoRootView(client: SupabaseClientProvider.client)
-        .environment(SessionStore(client: SupabaseClientProvider.client))
+        .environmentObject(SessionStore(client: SupabaseClientProvider.client))
 }

@@ -6,12 +6,12 @@
 //  Repository (ver contracts/navigation.md).
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class VehicleFormViewModel {
-    private(set) var state: VehicleFormUiState
+final class VehicleFormViewModel: ObservableObject {
+    @Published private(set) var state: VehicleFormUiState
 
     private let repository: VehicleRepository
     private let onSaved: (Vehicle) -> Void

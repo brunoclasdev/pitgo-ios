@@ -11,7 +11,7 @@ import SwiftUI
 struct ProviderSignUpView: View {
     @Environment(\.pitGoTokens) private var tokens
     @Environment(\.dismiss) private var dismiss
-    @State private var viewModel: ProviderSignUpViewModel
+    @StateObject private var viewModel: ProviderSignUpViewModel
     @FocusState private var focusedField: ProviderSignUpField?
     @State private var isPasswordVisible = false
     @State private var isConfirmationVisible = false
@@ -20,7 +20,7 @@ struct ProviderSignUpView: View {
     let onAuthenticated: (UUID) -> Void
 
     init(repository: ProviderSignUpRepository, onAuthenticated: @escaping (UUID) -> Void) {
-        _viewModel = State(initialValue: ProviderSignUpViewModel(repository: repository))
+        _viewModel = StateObject(wrappedValue: ProviderSignUpViewModel(repository: repository))
         self.onAuthenticated = onAuthenticated
     }
 
@@ -62,12 +62,12 @@ struct ProviderSignUpView: View {
             Button("Descartar", role: .destructive) { dismiss() }
             Button("Continuar editando", role: .cancel) {}
         }
-        .onChange(of: viewModel.state.focusRequest?.requestID) { _, _ in
+        .onChange(of: viewModel.state.focusRequest?.requestID) { _ in
             if let request = viewModel.state.focusRequest {
                 focusedField = request.field
             }
         }
-        .onChange(of: viewModel.state.submission) { _, newValue in
+        .onChange(of: viewModel.state.submission) { newValue in
             if newValue == .success, let userID = viewModel.completedUserID {
                 onAuthenticated(userID)
             }

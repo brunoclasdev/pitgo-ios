@@ -12,12 +12,12 @@ import SwiftUI
 
 struct RequestServiceView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: RequestServiceViewModel
+    @StateObject private var viewModel: RequestServiceViewModel
 
     let onBack: () -> Void
 
     init(serviceID: UUID, providerID: UUID, catalogRepository: ServiceCatalogRepository, onBack: @escaping () -> Void) {
-        _viewModel = State(initialValue: RequestServiceViewModel(
+        _viewModel = StateObject(wrappedValue: RequestServiceViewModel(
             serviceID: serviceID,
             providerID: providerID,
             catalogRepository: catalogRepository

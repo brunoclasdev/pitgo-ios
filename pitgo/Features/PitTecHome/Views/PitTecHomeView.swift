@@ -13,7 +13,7 @@ import SwiftUI
 
 struct PitTecHomeView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: PitTecHomeViewModel
+    @StateObject private var viewModel: PitTecHomeViewModel
     @State private var showSignOutConfirmation = false
     @State private var path: [PitGoRoute] = []
 
@@ -30,7 +30,7 @@ struct PitTecHomeView: View {
         locationRepository: DeviceLocationRepository,
         onSignOut: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: PitTecHomeViewModel(
+        _viewModel = StateObject(wrappedValue: PitTecHomeViewModel(
             repository: repository,
             snapshot: snapshot,
             pitTecRepository: pitTecRepository,
@@ -62,10 +62,10 @@ struct PitTecHomeView: View {
                         EmptyView()
                     }
                 }
-                .onChange(of: viewModel.sessionExpired) { _, expired in
+                .onChange(of: viewModel.sessionExpired) { expired in
                     if expired { onSignOut() }
                 }
-                .onChange(of: viewModel.pitTecAppointmentToOpen) { _, appointmentID in
+                .onChange(of: viewModel.pitTecAppointmentToOpen) { appointmentID in
                     guard let appointmentID, path.isEmpty else { return }
                     viewModel.acknowledgePitTecAppointment()
                     path.append(.pitTecProviderRequest(appointmentID: appointmentID))

@@ -13,7 +13,7 @@ import UIKit
 
 struct ClientMobileDispatchView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: ClientMobileDispatchViewModel
+    @StateObject private var viewModel: ClientMobileDispatchViewModel
     @State private var showCancellationSheet = false
 
     let catalogRepository: ServiceCatalogRepository
@@ -34,7 +34,7 @@ struct ClientMobileDispatchView: View {
         onOpenTracking: @escaping (UUID) -> Void,
         onSessionExpired: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: ClientMobileDispatchViewModel(
+        _viewModel = StateObject(wrappedValue: ClientMobileDispatchViewModel(
             serviceID: serviceID,
             repository: repository,
             paymentRepository: paymentRepository,
@@ -65,10 +65,10 @@ struct ClientMobileDispatchView: View {
             }
             .task { viewModel.start() }
             .onDisappear { viewModel.stop() }
-            .onChange(of: isSessionExpired) { _, expired in
+            .onChange(of: isSessionExpired) { expired in
                 if expired { onSessionExpired() }
             }
-            .onChange(of: acceptedAppointmentID) { _, appointmentID in
+            .onChange(of: acceptedAppointmentID) { appointmentID in
                 if let appointmentID { onOpenTracking(appointmentID) }
             }
             .sheet(isPresented: $showCancellationSheet) {

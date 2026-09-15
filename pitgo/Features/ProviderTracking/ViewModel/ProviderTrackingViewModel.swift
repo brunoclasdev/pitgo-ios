@@ -6,17 +6,20 @@
 //  possuir o loop — quem possui o estado é `ProviderTrackingStateRepository` (processo, injetado).
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class ProviderTrackingViewModel {
+final class ProviderTrackingViewModel: ObservableObject {
     let appointmentID: UUID
-    private(set) var eligibilityFailure: TrackingDegradedReason?
+    @Published private(set) var eligibilityFailure: TrackingDegradedReason?
 
     private let stateRepository: ProviderTrackingStateRepository
     private let dashboardRepository: ProviderDashboardRepository
     private let accountID: UUID
+    /// Repassa as mudanças de `stateRepository` (dono real do estado) para esta ViewModel — sem
+    /// isto, `objectWillChange` nunca dispararia quando só `stateRepository.state` mudasse.
+    private var cancellables = Set<AnyCancellable>()
 
     var state: ProviderTrackingState { stateRepository.state }
 
@@ -30,6 +33,9 @@ final class ProviderTrackingViewModel {
         self.accountID = accountID
         self.stateRepository = stateRepository
         self.dashboardRepository = dashboardRepository
+        stateRepository.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
     /// Ação visível exigida pelo contrato antes de solicitar `.authorizedAlways` (ver research.md

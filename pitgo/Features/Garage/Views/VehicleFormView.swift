@@ -11,7 +11,7 @@ import SwiftUI
 struct VehicleFormView: View {
     @Environment(\.pitGoTokens) private var tokens
     @Environment(\.dismiss) private var dismiss
-    @State private var viewModel: VehicleFormViewModel
+    @StateObject private var viewModel: VehicleFormViewModel
     @FocusState private var focusedField: VehicleField?
     @State private var showDiscardConfirmation = false
 
@@ -30,8 +30,8 @@ struct VehicleFormView: View {
         onCancel: (() -> Void)? = nil,
         onSessionExpired: (() -> Void)? = nil
     ) {
-        _viewModel = State(
-            initialValue: VehicleFormViewModel(
+        _viewModel = StateObject(
+            wrappedValue: VehicleFormViewModel(
                 repository: repository,
                 existingVehicleCount: existingVehicleCount,
                 origin: origin,
@@ -84,7 +84,7 @@ struct VehicleFormView: View {
                 }
                 .padding(16)
             }
-            .onChange(of: viewModel.state.focusRequest?.requestID) { _, _ in
+            .onChange(of: viewModel.state.focusRequest?.requestID) { _ in
                 guard let request = viewModel.state.focusRequest else { return }
                 withAnimation { proxy.scrollTo(request.field, anchor: .center) }
                 Task {
@@ -118,7 +118,7 @@ struct VehicleFormView: View {
             Button("Descartar", role: .destructive, action: cancel)
             Button("Continuar editando", role: .cancel) {}
         }
-        .onChange(of: isSessionExpired) { _, expired in
+        .onChange(of: isSessionExpired) { expired in
             if expired { onSessionExpired?() }
         }
     }

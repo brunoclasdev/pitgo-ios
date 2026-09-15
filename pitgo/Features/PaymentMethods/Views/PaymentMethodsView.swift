@@ -15,11 +15,11 @@ import SwiftUI
 
 struct PaymentMethodsView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: PaymentMethodsViewModel
+    @StateObject private var viewModel: PaymentMethodsViewModel
     @State private var isPresentingForm = false
 
     init(repository: SavedCardRepository) {
-        _viewModel = State(initialValue: PaymentMethodsViewModel(repository: repository))
+        _viewModel = StateObject(wrappedValue: PaymentMethodsViewModel(repository: repository))
     }
 
     var body: some View {
@@ -123,7 +123,7 @@ struct PaymentMethodsView: View {
 /// recriados a cada tentativa (o SDK não oferece um "limpar" explícito).
 private struct CardRegistrationForm: View {
     @Environment(\.pitGoTokens) private var tokens
-    @Bindable var viewModel: PaymentMethodsViewModel
+    @ObservedObject var viewModel: PaymentMethodsViewModel
     @Binding var isPresented: Bool
 
     @State private var cardNumberField: CardNumberTextField?
@@ -132,6 +132,11 @@ private struct CardRegistrationForm: View {
     @State private var cardHolderName = ""
     @State private var formError: String?
     @State private var isTokenizing = false
+    /// Cópia manual do valor anterior de `isSubmitting` — `onChange(of:)` de um único parâmetro
+    /// (compatível com iOS 16) não entrega o valor antigo como a variante de dois parâmetros. Seguro
+    /// iniciar em `false`: este formulário é recriado do zero a cada abertura do `.sheet`, sempre com
+    /// `viewModel.isSubmitting == false` no primeiro corpo renderizado.
+    @State private var wasSubmitting = false
 
     var body: some View {
         NavigationStack {
@@ -204,12 +209,13 @@ private struct CardRegistrationForm: View {
                 }
             }
         }
-        .onChange(of: viewModel.isSubmitting) { wasSubmitting, isSubmitting in
+        .onChange(of: viewModel.isSubmitting) { isSubmitting in
             // Cadastro concluído sem erro — fecha o formulário sozinho; um erro mantém a tela aberta
             // para nova tentativa (US2 cenário 2).
             if wasSubmitting, !isSubmitting, viewModel.submitError == nil {
                 isPresented = false
             }
+            wasSubmitting = isSubmitting
         }
     }
 

@@ -16,7 +16,7 @@ import SwiftUI
 struct PaymentCheckoutView: View {
     @Environment(\.pitGoTokens) private var tokens
     @Environment(\.dismiss) private var dismiss
-    @State private var viewModel: PaymentCheckoutViewModel
+    @StateObject private var viewModel: PaymentCheckoutViewModel
     @State private var copiedFeedback = false
 
     let onApproved: (UUID) -> Void
@@ -32,7 +32,7 @@ struct PaymentCheckoutView: View {
         onApproved: @escaping (UUID) -> Void,
         onSessionExpired: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: PaymentCheckoutViewModel(
+        _viewModel = StateObject(wrappedValue: PaymentCheckoutViewModel(
             serviceID: serviceID,
             dispatchKind: dispatchKind,
             catalogRepository: catalogRepository,
@@ -62,7 +62,7 @@ struct PaymentCheckoutView: View {
         .interactiveDismissDisabled(isBusy)
         .task { viewModel.start() }
         .onDisappear { viewModel.stop() }
-        .onChange(of: viewModel.state) { _, state in
+        .onChange(of: viewModel.state) { state in
             if case .approved = state {
                 onApproved(viewModel.requestID)
             }

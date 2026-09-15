@@ -9,7 +9,7 @@
 import SwiftUI
 
 struct WelcomeView: View {
-    @State private var viewModel = WelcomeViewModel()
+    @StateObject private var viewModel = WelcomeViewModel()
 
     let onCreateAccount: () -> Void
     let onEnter: () -> Void
@@ -86,7 +86,6 @@ struct WelcomeView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 32)
             }
-            .safeAreaPadding()
         }
         .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)

@@ -8,12 +8,12 @@
 //  confirmação, nunca em uma chamada real (esta feature permanece mockada nesta entrega).
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class RequestServiceViewModel {
-    private(set) var state: RequestServiceUiState = .loading
+final class RequestServiceViewModel: ObservableObject {
+    @Published private(set) var state: RequestServiceUiState = .loading
 
     private let serviceID: UUID
     private let providerID: UUID

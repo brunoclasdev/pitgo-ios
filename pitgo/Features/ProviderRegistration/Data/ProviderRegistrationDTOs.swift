@@ -3,12 +3,16 @@
 //  pitgo
 //
 //  Mapeia o catálogo somente leitura e o agregado próprio (`public.providers`/`addresses`/
-//  `provider_services`, já existentes e compartilhados com o Android — ver
-//  contracts/supabase-provider-registration.md) e o payload/resultado da RPC
-//  `create_provider_registration`. A coluna física de bairro é `addresses.neighbornhood` (grafia
-//  legada preservada deliberadamente); o Swift expõe `neighborhood` via `CodingKeys`, mesma
-//  estratégia de `Profile.isActive`/`active`. O JSONB de payload da RPC já espera a chave
-//  `neighborhood` (grafia correta, distinta da coluna física) — sem `CodingKeys` nesse caso.
+//  `provider_services`, já existentes e compartilhados com o Android) e o payload/resultado da RPC
+//  `create_provider_registration`.
+//
+//  ACHADO desta sessão (reproduzido em device físico real: cadastro criava a empresa no servidor,
+//  mas o app mostrava "Alguns dados não puderam ser aceitos" mesmo assim): a coluna física de bairro
+//  já foi `addresses.neighbornhood` (grafia legada), mas a migration `20260821050000_provider_
+//  neighborhood_contract` (conferida no repo Android, mesmo backend) renomeou pra `neighborhood`
+//  (grafia correta) fazia tempo — `ProviderAddress.CodingKeys` ainda mapeava pro nome antigo, então
+//  `fetchOwnAggregate` falhava ao decodificar `addresses` toda vez logo depois do `INSERT` já ter
+//  sido confirmado na mesma transação da RPC.
 //
 
 import Foundation
@@ -83,8 +87,7 @@ struct ProviderAddress: Decodable {
     let longitude: Decimal?
 
     enum CodingKeys: String, CodingKey {
-        case id, street, number, city, state, country, complement, latitude, longitude
-        case neighborhood = "neighbornhood"
+        case id, street, number, neighborhood, city, state, country, complement, latitude, longitude
         case zipCode = "zip_code"
     }
 }
@@ -103,15 +106,18 @@ struct ProviderServiceRow: Decodable {
     }
 }
 
-// MARK: - Write: payload da RPC (ver contracts/account-provider-database.md "Provider registration"
-// de `009` — `p_address` foi removido: texto/ponto do endereço vêm da prova de geocodificação
-// travada por `p_geocode_verification_id`, nunca de um argumento separado).
+// MARK: - Write: payload da RPC
+//
+// `contracts/account-provider-database.md` (`009`) documenta `p_address` como removido em favor de
+// `p_geocode_verification_id` — desatualizado: a função real (conferida no fonte do repo Android,
+// mesmo backend, e via chamada direta ao PostgREST nesta sessão) recebe `p_provider`/`p_address`/
+// `p_offers`, com o token da prova dentro de `p_address.verification_token`. Ver nota em
+// `ProviderAddressVerificationState`.
 
 struct CreateProviderRegistrationParams: Encodable {
     let p_provider: ProviderPayload
+    let p_address: AddressPayload
     let p_offers: [OfferPayload]
-    let p_geocode_verification_id: UUID
-    let p_divergence_confirmed: Bool
 }
 
 struct ProviderPayload: Encodable {
@@ -121,6 +127,18 @@ struct ProviderPayload: Encodable {
     let phone: String
     let cnpj: String
     let location_mode: String
+}
+
+struct AddressPayload: Encodable {
+    let street: String
+    let number: String
+    let neighborhood: String
+    let zip_code: String
+    let city: String
+    let state: String
+    let country: String
+    let complement: String?
+    let verification_token: String
 }
 
 struct OfferPayload: Encodable {
@@ -135,21 +153,18 @@ struct OfferPayload: Encodable {
 
 // MARK: - Write: resultado da RPC
 //
-// O `outcome` cobre sucesso e falha de domínio no mesmo formato fechado (ver
-// contracts/account-provider-database.md "Provider registration"). `provider_id`/`offer_count` só
-// vêm preenchidos em `CREATED`/`ALREADY_REGISTERED`.
+// Só `CREATED`/`ALREADY_REGISTERED` chegam como um 200 decodificável — toda falha de domínio
+// (`LOCATION_VERIFICATION_REQUIRED`, `INVALID_ADDRESS`, `OFFER_REQUIRED`, `DUPLICATE_SERVICE`,
+// `PROVIDER_REQUIRED`, unique violation de e-mail/CNPJ etc.) é uma exceção Postgres (`raise
+// exception`), nunca um `outcome` fechado num corpo de sucesso — confirmado lendo a função real
+// (fonte no repo Android) e reproduzindo em device físico real. `ProviderRegistrationRepository.
+// classify(_:)` já cobre esses códigos via `catch`, então nenhuma mudança foi necessária ali.
+// `provider_id`/`offer_count` só vêm preenchidos nos dois outcomes abaixo.
 
 struct CreateProviderRegistrationResult: Decodable {
     enum Outcome: String, Decodable {
         case created = "CREATED"
         case alreadyRegistered = "ALREADY_REGISTERED"
-        case geocodeExpired = "GEOCODE_EXPIRED"
-        case divergenceConfirmationRequired = "DIVERGENCE_CONFIRMATION_REQUIRED"
-        case catalogChanged = "CATALOG_CHANGED"
-        case emailUnavailable = "EMAIL_UNAVAILABLE"
-        case cnpjUnavailable = "CNPJ_UNAVAILABLE"
-        case invalidInput = "INVALID_INPUT"
-        case sessionBlocked = "SESSION_BLOCKED"
     }
 
     let outcome: Outcome
@@ -163,7 +178,14 @@ struct CreateProviderRegistrationResult: Decodable {
     }
 }
 
-// MARK: - Write: Edge Function `geocode-provider-address` (ver contracts/geocoding-edge-function.md)
+// MARK: - Write: Edge Function `geocode-provider-address`
+//
+// `contracts/geocoding-edge-function.md` (`009`) documenta um fix de GPS do dispositivo comparado
+// contra o endereço geocodificado (`device_fix`, `outcome` com `FIX_TOO_OLD`/`WRONG_REGION`/etc.,
+// `verification_id` como UUID) — desatualizado: o Edge Function real (fonte no repo Android, mesmo
+// backend) só geocodifica o texto do endereço via MapTiler, sem nenhum fix de GPS. Toda falha chega
+// via status HTTP não-2xx com `{code: "..."}` no corpo (`ProviderAddressVerificationRepository.
+// classify(_:)`), nunca como um `outcome` de erro dentro de um 200.
 
 struct GeocodeAddressPayload: Encodable {
     let street: String
@@ -173,48 +195,18 @@ struct GeocodeAddressPayload: Encodable {
     let city: String
     let state: String
     let country: String
-    let complement: String?
-}
-
-struct GeocodeDeviceFixPayload: Encodable {
-    let latitude: Double
-    let longitude: Double
-    let accuracy_m: Double
-    let captured_at: Date
 }
 
 struct GeocodeVerificationRequest: Encodable {
     let address: GeocodeAddressPayload
-    let device_fix: GeocodeDeviceFixPayload
 }
 
 struct GeocodeVerificationResponse: Decodable {
-    let outcome: Outcome
-    let verificationID: UUID?
-    let normalizedAddress: String?
-    let distanceM: Double?
-    let requiresConfirmation: Bool?
-    let expiresAt: Date?
-
-    enum Outcome: String, Decodable {
-        case verified = "VERIFIED"
-        case noMatch = "NO_MATCH"
-        case ambiguousOrPartial = "AMBIGUOUS_OR_PARTIAL"
-        case wrongRegion = "WRONG_REGION"
-        case fixTooOld = "FIX_TOO_OLD"
-        case fixTooImprecise = "FIX_TOO_IMPRECISE"
-        case invalidAddress = "INVALID_ADDRESS"
-        case rateLimited = "RATE_LIMITED"
-        case upstreamUnavailable = "UPSTREAM_UNAVAILABLE"
-        case sessionBlocked = "SESSION_BLOCKED"
-    }
+    let verificationToken: String
+    let expiresAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case outcome
-        case verificationID = "verification_id"
-        case normalizedAddress = "normalized_address"
-        case distanceM = "distance_m"
-        case requiresConfirmation = "requires_confirmation"
+        case verificationToken = "verification_token"
         case expiresAt = "expires_at"
     }
 }

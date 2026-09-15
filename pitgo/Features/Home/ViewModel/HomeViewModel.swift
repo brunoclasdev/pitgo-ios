@@ -8,12 +8,12 @@
 //  inteira a cada refresh).
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class HomeViewModel {
-    private(set) var state: HomeUiState = .loading
+final class HomeViewModel: ObservableObject {
+    @Published private(set) var state: HomeUiState = .loading
 
     private let repository: AccountRepository
     private let catalogRepository: ServiceCatalogRepository

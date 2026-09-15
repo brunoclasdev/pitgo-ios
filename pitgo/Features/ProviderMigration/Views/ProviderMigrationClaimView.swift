@@ -10,7 +10,7 @@ import SwiftUI
 
 struct ProviderMigrationClaimView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: ProviderMigrationClaimViewModel
+    @StateObject private var viewModel: ProviderMigrationClaimViewModel
     @State private var locationMode: ProviderLocationMode = .fixed
 
     let onMigrated: () -> Void
@@ -20,7 +20,7 @@ struct ProviderMigrationClaimView: View {
         coordinator: ProviderMigrationCoordinator,
         onMigrated: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: ProviderMigrationClaimViewModel(repository: repository, coordinator: coordinator))
+        _viewModel = StateObject(wrappedValue: ProviderMigrationClaimViewModel(repository: repository, coordinator: coordinator))
         self.onMigrated = onMigrated
     }
 
@@ -49,7 +49,7 @@ struct ProviderMigrationClaimView: View {
         .navigationTitle("Migrar empresa")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .onChange(of: viewModel.state) { _, newValue in
+        .onChange(of: viewModel.state) { newValue in
             if newValue == .succeeded { onMigrated() }
         }
     }

@@ -7,12 +7,12 @@
 //  `ProviderMigrationCoordinator` (ver contracts/navigation-session.md "Assisted migration stack").
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class ProviderMigrationStartViewModel {
-    private(set) var state: ProviderMigrationBeginState = .idle
+final class ProviderMigrationStartViewModel: ObservableObject {
+    @Published private(set) var state: ProviderMigrationBeginState = .idle
 
     private let repository: ProviderMigrationRepository
     private let coordinator: ProviderMigrationCoordinator
@@ -45,11 +45,10 @@ final class ProviderMigrationStartViewModel {
     }
 }
 
-@Observable
 @MainActor
-final class ProviderMigrationClaimViewModel {
-    private(set) var state: ProviderMigrationClaimState = .idle
-    private(set) var claimedProviderID: UUID?
+final class ProviderMigrationClaimViewModel: ObservableObject {
+    @Published private(set) var state: ProviderMigrationClaimState = .idle
+    @Published private(set) var claimedProviderID: UUID?
 
     private let repository: ProviderMigrationRepository
     private let coordinator: ProviderMigrationCoordinator

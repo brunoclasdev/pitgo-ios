@@ -8,14 +8,14 @@
 //  em `UserDefaults`/`Keychain`/rota/log.
 //
 
+import Combine
 import Foundation
 import Security
 
-@Observable
 @MainActor
-final class ProviderMigrationCoordinator {
-    private(set) var token: String?
-    private(set) var expiresAt: Date?
+final class ProviderMigrationCoordinator: ObservableObject {
+    @Published private(set) var token: String?
+    @Published private(set) var expiresAt: Date?
 
     /// Gera 32 bytes aleatórios e os mantém como o desafio pendente (research.md §3).
     func generateToken() -> String {

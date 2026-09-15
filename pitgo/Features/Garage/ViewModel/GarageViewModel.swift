@@ -3,16 +3,16 @@
 //  pitgo
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class GarageViewModel {
-    private(set) var state: GarageUiState = .loading
+final class GarageViewModel: ObservableObject {
+    @Published private(set) var state: GarageUiState = .loading
     /// Última linha autoritativa de `set_primary_vehicle` — a View observa esta propriedade para
     /// atualizar `SessionStore.applyAuthoritativePrimaryVehicle(_:)` (`012`), sem acoplar este
     /// ViewModel à sessão.
-    private(set) var confirmedPrimaryVehicle: Vehicle?
+    @Published private(set) var confirmedPrimaryVehicle: Vehicle?
 
     private let repository: VehicleRepository
     private let userID: UUID

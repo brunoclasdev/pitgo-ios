@@ -13,7 +13,7 @@ import SwiftUI
 
 struct PitTecHomeProfileTab: View {
     @Environment(\.pitGoTokens) private var tokens
-    let viewModel: PitTecHomeViewModel
+    @ObservedObject var viewModel: PitTecHomeViewModel
     let snapshot: ProviderSnapshot
     @Binding var showSignOutConfirmation: Bool
     let onSignOut: () -> Void

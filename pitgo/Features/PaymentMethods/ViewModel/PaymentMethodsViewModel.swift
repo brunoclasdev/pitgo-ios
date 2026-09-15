@@ -6,6 +6,7 @@
 //  nunca acontece a partir do checkout (FR-005/FR-019).
 //
 
+import Combine
 import Foundation
 
 enum PaymentMethodsUiState: Equatable {
@@ -14,13 +15,12 @@ enum PaymentMethodsUiState: Equatable {
     case failure
 }
 
-@Observable
 @MainActor
-final class PaymentMethodsViewModel {
-    private(set) var state: PaymentMethodsUiState = .loading
-    private(set) var isSubmitting = false
-    private(set) var submitError: String?
-    private(set) var removingID: SavedCard.ID?
+final class PaymentMethodsViewModel: ObservableObject {
+    @Published private(set) var state: PaymentMethodsUiState = .loading
+    @Published private(set) var isSubmitting = false
+    @Published private(set) var submitError: String?
+    @Published private(set) var removingID: SavedCard.ID?
 
     private let repository: SavedCardRepository
     private var isStarted = false

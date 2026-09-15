@@ -12,16 +12,16 @@
 //  redireciona quando um atendimento é aceito.
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class ProviderDiscoveryTracker {
-    private(set) var state: ProviderTrackingState = .stopped
+final class ProviderDiscoveryTracker: ObservableObject {
+    @Published private(set) var state: ProviderTrackingState = .stopped
     /// `022` — último fix recebido pelo mesmo stream já consumido para publicar a localização de
     /// despacho; exposto só para exibição (ex.: centralizar o mapa da home do PitTec), sem criar uma
     /// segunda fonte de localização.
-    private(set) var lastFix: DeviceLocationFix?
+    @Published private(set) var lastFix: DeviceLocationFix?
 
     private let locationRepository: DeviceLocationRepository
     private let dispatchRepository: MobileDispatchRepository

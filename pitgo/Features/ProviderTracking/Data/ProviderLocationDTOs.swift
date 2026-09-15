@@ -2,18 +2,26 @@
 //  ProviderLocationDTOs.swift
 //  pitgo
 //
-//  Payload/resultado de `publish_provider_location`/`stop_provider_location`/
-//  `get_appointment_provider_location` (já existentes, ver contracts/location-realtime.md "Publish
-//  RPC" de `009`). O contrato documenta a assinatura com nomes de parâmetro abreviados
-//  (`appointmentId`, `trackerId`) — as chaves `p_`-prefixadas abaixo seguem a mesma convenção já
-//  usada por toda RPC deste projeto (`006`/`007`); não há como confirmar contra o projeto Supabase
-//  real nesta sessão (sem credenciais), ver tasks.md.
+//  Payload/resultado de `publish_mobile_provider_location`/`stop_mobile_provider_location` — mesma
+//  RPC unificada já usada pelo discovery tracker deste app (`MobileDispatchRepository.
+//  publishDiscoveryLocation`/`stopDiscoveryLocation`) e pelo Android inteiro (`features/
+//  providertracking/repository/ProviderLocationRepository.kt`, que nunca chamou outra coisa). O
+//  servidor decide sozinho, a partir do `auth.uid()`, se a posição é para a busca pública
+//  (`target: DISCOVERY`) ou para o atendimento já aceito (`target: APPOINTMENT`) — por isso não há
+//  mais `p_appointment_id` nos parâmetros.
+//
+//  Alinhado em 2026-09-14: esse arquivo apontava para `publish_provider_location`/
+//  `stop_provider_location` (RPC dedicada, documentada no contrato original de `009`), mas essa RPC
+//  não foi tocada desde então e divergiu do que o cliente decodificava — `PUBLISHED` não devolve
+//  `published_at` (o `guard let` correspondente sempre caía em `.unknown`) e o outcome de fix
+//  desatualizado é `IGNORED`, não `IGNORED_OLDER` (decode falhava e era classificado como erro de
+//  serviço). Ver `private.advance_pittec_dispatch`/`publish_mobile_provider_location` em
+//  `supabase/migrations/20260902000000_pittec_on_demand.sql` para a definição atual das duas RPCs.
 //
 
 import Foundation
 
 struct PublishProviderLocationParams: Encodable {
-    let p_appointment_id: UUID
     let p_latitude: Decimal
     let p_longitude: Decimal
     let p_accuracy_m: Decimal
@@ -25,22 +33,27 @@ struct PublishProviderLocationParams: Encodable {
 struct PublishProviderLocationResult: Decodable {
     enum Outcome: String, Decodable {
         case published = "PUBLISHED"
-        case ignoredOlder = "IGNORED_OLDER"
+        case ignored = "IGNORED"
         case publisherConflict = "PUBLISHER_CONFLICT"
+    }
+
+    enum Target: String, Decodable {
+        case discovery = "DISCOVERY"
+        case appointment = "APPOINTMENT"
     }
 
     let outcome: Outcome
     let version: Int64?
     let publishedAt: Date?
+    let target: Target?
 
     enum CodingKeys: String, CodingKey {
-        case outcome, version
+        case outcome, version, target
         case publishedAt = "published_at"
     }
 }
 
 struct StopProviderLocationParams: Encodable {
-    let p_appointment_id: UUID
     let p_tracker_instance_id: UUID
 }
 

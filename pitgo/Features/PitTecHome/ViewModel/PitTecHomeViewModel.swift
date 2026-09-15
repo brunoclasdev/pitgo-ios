@@ -8,31 +8,31 @@
 //  `PitTecRepository`), só com uma apresentação em abas em vez de um `ScrollView` único.
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class PitTecHomeViewModel {
-    private(set) var state: PitTecHomeUiState
-    private(set) var selectedTab: PitTecHomeTab = .map
-    private(set) var settingsFailure: ProviderSettingsFailureReason?
-    private(set) var sessionExpired = false
-    private(set) var pricingState: PitTecPricingLoadState = .loading
+final class PitTecHomeViewModel: ObservableObject {
+    @Published private(set) var state: PitTecHomeUiState
+    @Published private(set) var selectedTab: PitTecHomeTab = .map
+    @Published private(set) var settingsFailure: ProviderSettingsFailureReason?
+    @Published private(set) var sessionExpired = false
+    @Published private(set) var pricingState: PitTecPricingLoadState = .loading
     /// Atendimento PitTec já aceito (ou aguardando confirmação/pagamento do cliente) — `nil` quando
     /// não há nenhum em andamento. Uma solicitação `PENDING` nova não passa por aqui, ver
     /// `pitTecAppointmentToOpen`.
-    private(set) var activeAppointment: PitTecAppointment?
+    @Published private(set) var activeAppointment: PitTecAppointment?
     /// Solicitação PitTec nova detectada para este provider — a View empurra
     /// `PitTecIncomingRequestView` quando este campo deixa de ser `nil`, independentemente da aba
     /// selecionada no momento (FR-010/SC-004).
-    private(set) var pitTecAppointmentToOpen: UUID?
+    @Published private(set) var pitTecAppointmentToOpen: UUID?
     /// `022` fix: o tracker de publicação (`discoveryTracker`) só roda enquanto "Disponível" está
     /// ligado (`syncTracker`) — com o provider indisponível, `lastFix` nunca era preenchido e a aba
     /// Mapa ficava presa para sempre em "Obtendo localização…". Fix único pedido sob demanda (mesmo
     /// padrão de `PitTecClientViewModel.lastFix`) só para centralizar o mapa nesse caso, sem iniciar
     /// um segundo stream contínuo nem publicar nada.
-    private(set) var mapFix: DeviceLocationFix?
-    private(set) var mapFixFailure: LocationRequiredReason?
+    @Published private(set) var mapFix: DeviceLocationFix?
+    @Published private(set) var mapFixFailure: LocationRequiredReason?
 
     let discoveryTracker: ProviderDiscoveryTracker
 
@@ -53,6 +53,9 @@ final class PitTecHomeViewModel {
     /// fallback aqui do lado provider. Poll de segurança abaixo, nunca a única fonte de verdade.
     private var pollTask: Task<Void, Never>?
     private let pollInterval: TimeInterval = 5
+    /// Repassa as mudanças de `discoveryTracker` — `PitTecHomeMapTab` lê `discoveryTracker.lastFix`/
+    /// `.state` diretamente, e sem isto `objectWillChange` nunca dispararia só por causa dele.
+    private var cancellables = Set<AnyCancellable>()
 
     init(
         repository: ProviderDashboardRepository,
@@ -69,6 +72,9 @@ final class PitTecHomeViewModel {
         accountID = snapshot.accountID
         state = .content(snapshot)
         discoveryTracker = ProviderDiscoveryTracker(locationRepository: locationRepository, dispatchRepository: dispatchRepository)
+        discoveryTracker.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
     func selectTab(_ tab: PitTecHomeTab) {
@@ -235,9 +241,10 @@ final class PitTecHomeViewModel {
         guard let snapshot = currentSnapshot, snapshot.provider.available != available else { return }
         settingsFailure = nil
         settingsTask?.cancel()
+        let locationMode = snapshot.provider.locationMode
         settingsTask = Task { [weak self] in
             guard let self else { return }
-            let result = await repository.setAvailability(available)
+            let result = await repository.updateSettings(available: available, locationMode: locationMode)
             if Task.isCancelled { return }
             apply(result)
         }
@@ -245,8 +252,9 @@ final class PitTecHomeViewModel {
 
     private func apply(_ result: ProviderSettingsResult) {
         switch result {
-        case let .success(provider):
-            state = .content(makeSnapshot(replacing: provider))
+        case let .success(update):
+            guard let snapshot = currentSnapshot else { return }
+            state = .content(makeSnapshot(replacing: snapshot.provider.applying(update)))
             syncTracker()
         case .sessionExpired:
             sessionExpired = true

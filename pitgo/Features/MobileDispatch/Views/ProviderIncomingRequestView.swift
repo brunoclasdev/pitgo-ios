@@ -11,7 +11,7 @@ import SwiftUI
 
 struct ProviderIncomingRequestView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: ProviderIncomingRequestViewModel
+    @StateObject private var viewModel: ProviderIncomingRequestViewModel
     @State private var showCancellationSheet = false
 
     let onBack: () -> Void
@@ -25,7 +25,7 @@ struct ProviderIncomingRequestView: View {
         onOpenTracking: @escaping (UUID) -> Void,
         onSessionExpired: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: ProviderIncomingRequestViewModel(providerID: providerID, repository: repository))
+        _viewModel = StateObject(wrappedValue: ProviderIncomingRequestViewModel(providerID: providerID, repository: repository))
         self.onBack = onBack
         self.onOpenTracking = onOpenTracking
         self.onSessionExpired = onSessionExpired
@@ -48,10 +48,10 @@ struct ProviderIncomingRequestView: View {
             }
             .task { viewModel.start() }
             .onDisappear { viewModel.stop() }
-            .onChange(of: isSessionExpired) { _, expired in
+            .onChange(of: isSessionExpired) { expired in
                 if expired { onSessionExpired() }
             }
-            .onChange(of: startedAppointmentID) { _, appointmentID in
+            .onChange(of: startedAppointmentID) { appointmentID in
                 if let appointmentID { onOpenTracking(appointmentID) }
             }
             .sheet(isPresented: $showCancellationSheet) {

@@ -12,7 +12,7 @@ import SwiftUI
 
 struct PitTecIncomingRequestView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: PitTecIncomingRequestViewModel
+    @StateObject private var viewModel: PitTecIncomingRequestViewModel
     @State private var showCancellationSheet = false
 
     let onBack: () -> Void
@@ -24,7 +24,7 @@ struct PitTecIncomingRequestView: View {
         onBack: @escaping () -> Void,
         onSessionExpired: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: PitTecIncomingRequestViewModel(providerID: providerID, repository: repository))
+        _viewModel = StateObject(wrappedValue: PitTecIncomingRequestViewModel(providerID: providerID, repository: repository))
         self.onBack = onBack
         self.onSessionExpired = onSessionExpired
     }
@@ -46,7 +46,7 @@ struct PitTecIncomingRequestView: View {
             }
             .task { viewModel.start() }
             .onDisappear { viewModel.stop() }
-            .onChange(of: isSessionExpired) { _, expired in
+            .onChange(of: isSessionExpired) { expired in
                 if expired { onSessionExpired() }
             }
             .sheet(isPresented: $showCancellationSheet) {

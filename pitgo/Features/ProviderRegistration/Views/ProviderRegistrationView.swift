@@ -12,7 +12,7 @@ import SwiftUI
 
 struct ProviderRegistrationView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: ProviderRegistrationViewModel
+    @StateObject private var viewModel: ProviderRegistrationViewModel
     @FocusState private var focusedField: ProviderField?
     @State private var showDiscardConfirmation = false
     @State private var showDivergenceConfirmation = false
@@ -30,7 +30,7 @@ struct ProviderRegistrationView: View {
         onFinished: @escaping () -> Void,
         onSessionExpired: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: ProviderRegistrationViewModel(
+        _viewModel = StateObject(wrappedValue: ProviderRegistrationViewModel(
             repository: repository,
             verificationRepository: verificationRepository,
             accountID: accountID,
@@ -45,7 +45,7 @@ struct ProviderRegistrationView: View {
             .navigationTitle("Cadastro da empresa")
             .navigationBarTitleDisplayMode(.inline)
             .task { viewModel.bootstrap() }
-            .onChange(of: isSessionExpired) { _, expired in
+            .onChange(of: isSessionExpired) { expired in
                 if expired { onSessionExpired() }
             }
     }
@@ -153,10 +153,10 @@ struct ProviderRegistrationView: View {
             Button("Confirmar endereço mesmo assim") { viewModel.confirmDivergence() }
             Button("Corrigir endereço", role: .cancel) {}
         }
-        .onChange(of: content.addressVerification) { _, newValue in
+        .onChange(of: content.addressVerification) { newValue in
             if case .diverged = newValue { showDivergenceConfirmation = true }
         }
-        .onChange(of: content.focusRequest?.requestID) { _, _ in
+        .onChange(of: content.focusRequest?.requestID) { _ in
             if let request = content.focusRequest {
                 focusedField = request.field
             }
@@ -399,16 +399,12 @@ struct ProviderRegistrationView: View {
         switch content.addressVerification {
         case .unverified:
             EmptyView()
-        case .locating:
-            Label("Obtendo sua localização…", systemImage: "location")
-                .font(PitGoTypography.caption)
-                .foregroundStyle(tokens.textSecondary)
         case .geocoding:
             Label("Verificando endereço…", systemImage: "mappin.and.ellipse")
                 .font(PitGoTypography.caption)
                 .foregroundStyle(tokens.textSecondary)
-        case let .matched(_, distance, _):
-            Label("Endereço verificado (\(Int(distance)) m do dispositivo)", systemImage: "checkmark.circle.fill")
+        case .matched:
+            Label("Endereço verificado", systemImage: "checkmark.circle.fill")
                 .font(PitGoTypography.caption)
                 .foregroundStyle(.green)
                 .accessibilityAddTraits(.updatesFrequently)
@@ -616,22 +612,44 @@ struct ProviderRegistrationView: View {
     }
 
     private func submitButton(_ content: EditingContent) -> some View {
-        Button(action: { viewModel.submit() }) {
-            ZStack {
-                if content.isSubmitting {
-                    ProgressView().tint(.white)
+        VStack(spacing: 8) {
+            Button(action: { viewModel.submit() }) {
+                ZStack {
+                    if content.isSubmitting {
+                        ProgressView().tint(.white)
+                    }
+                    Text("Cadastrar empresa")
+                        .opacity(content.isSubmitting ? 0 : 1)
                 }
-                Text("Cadastrar empresa")
-                    .opacity(content.isSubmitting ? 0 : 1)
+                .frame(maxWidth: .infinity)
+                .padding()
             }
-            .frame(maxWidth: .infinity)
-            .padding()
+            .foregroundStyle(.white)
+            .background(content.canSubmit ? tokens.accent : tokens.textSecondary)
+            .clipShape(Capsule())
+            .frame(minHeight: 56)
+            .disabled(!content.canSubmit)
+
+            if let reason = submitBlockedReason(content) {
+                Text(reason)
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
         }
-        .foregroundStyle(.white)
-        .background(content.canSubmit ? tokens.accent : tokens.textSecondary)
-        .clipShape(Capsule())
-        .frame(minHeight: 56)
-        .disabled(!content.canSubmit)
+    }
+
+    /// `canSubmit` não exige mais endereço verificado (ver nota em `EditingContent.canSubmit`) — a
+    /// verificação roda sozinha ao tocar em "Cadastrar empresa" quando ainda não foi feita. O único
+    /// motivo restante para o botão ficar cinza é a modalidade Móvel/PitTec ainda resolvendo o
+    /// serviço implícito do catálogo.
+    private func submitBlockedReason(_ content: EditingContent) -> String? {
+        guard !content.canSubmit, !content.isSubmitting else { return nil }
+        if content.draft.locationMode != .fixed {
+            return "Aguarde o serviço da modalidade carregar."
+        }
+        return nil
     }
 
     private func message(for reason: ProviderFailureReason) -> LocalizedStringResource {

@@ -7,15 +7,15 @@
 //  antes do aceite) em vez de `candidate`.
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class PitTecIncomingRequestViewModel {
-    private(set) var state: ProviderDispatchUiStatePitTec = .noIncoming
-    private(set) var routeContext: PitTecRouteContext?
+final class PitTecIncomingRequestViewModel: ObservableObject {
+    @Published private(set) var state: ProviderDispatchUiStatePitTec = .noIncoming
+    @Published private(set) var routeContext: PitTecRouteContext?
     /// Tick de 1s só para recompor o countdown (`014` FR-001) — nunca decide uma transição sozinho.
-    private(set) var localNow: Date = .init()
+    @Published private(set) var localNow: Date = .init()
 
     private let providerID: UUID
     private let repository: PitTecRepository

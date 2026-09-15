@@ -19,7 +19,7 @@ import SwiftUI
 struct ServiceMapView: View {
     @Environment(\.pitGoTokens) private var tokens
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var viewModel: ServiceMapViewModel
+    @StateObject private var viewModel: ServiceMapViewModel
     @State private var displayMode: DisplayMode = .map
     @State private var pendingCenter: CLLocationCoordinate2D?
     @State private var selectedResult: ServiceMapResult?
@@ -42,7 +42,7 @@ struct ServiceMapView: View {
     ) {
         self.serviceID = serviceID
         self.onRequestService = onRequestService
-        _viewModel = State(initialValue: ServiceMapViewModel(serviceID: serviceID, repository: repository, locationRepository: locationRepository))
+        _viewModel = StateObject(wrappedValue: ServiceMapViewModel(serviceID: serviceID, repository: repository, locationRepository: locationRepository))
     }
 
     var body: some View {

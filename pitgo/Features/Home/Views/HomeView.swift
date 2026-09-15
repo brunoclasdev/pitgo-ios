@@ -12,7 +12,7 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(\.pitGoTokens) private var tokens
-    @State private var viewModel: HomeViewModel
+    @StateObject private var viewModel: HomeViewModel
 
     let onDiagnosticTap: () -> Void
     let onServiceTap: (UUID, ServiceDispatchKind) -> Void
@@ -36,7 +36,7 @@ struct HomeView: View {
         onOpenAppointment: @escaping (UUID) -> Void,
         onOpenAddress: @escaping () -> Void
     ) {
-        _viewModel = State(initialValue: HomeViewModel(
+        _viewModel = StateObject(wrappedValue: HomeViewModel(
             repository: repository,
             catalogRepository: catalogRepository,
             userID: userID,

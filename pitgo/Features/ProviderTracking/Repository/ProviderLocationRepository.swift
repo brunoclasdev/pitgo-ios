@@ -2,9 +2,16 @@
 //  ProviderLocationRepository.swift
 //  pitgo
 //
-//  Invoca somente `publish_provider_location`/`stop_provider_location` (já existentes, ver
-//  contracts/location-realtime.md "Publish RPC" de `009`). Toda regra de elegibilidade/arbitragem é
-//  autoridade do servidor — o client só fornece dados válidos e monotônicos.
+//  Invoca `publish_mobile_provider_location`/`stop_mobile_provider_location` — RPC unificada que já
+//  serve o discovery tracker (`MobileDispatchRepository.publishDiscoveryLocation`) e, a partir de
+//  2026-09-14, também este tracking pós-aceite: o servidor identifica pelo `auth.uid()` se o
+//  provider tem um atendimento ACCEPTED/IN_PROGRESS e decide sozinho o destino da posição (`target`
+//  na resposta), então não precisamos mais informar `p_appointment_id`. Alinhado com o Android
+//  (`features/providertracking/repository/ProviderLocationRepository.kt`, que já usava só esta RPC)
+//  — a RPC dedicada `publish_provider_location` (contrato original de `009`) segue existindo no
+//  backend mas não recebeu mais nenhuma atualização desde então; ver nota em
+//  `ProviderLocationDTOs.swift`. Toda regra de elegibilidade/arbitragem é autoridade do servidor — o
+//  client só fornece dados válidos e monotônicos.
 //
 
 import Foundation
@@ -14,6 +21,7 @@ enum PublishLocationResult {
     case published(version: Int64, publishedAt: Date)
     case ignoredOlder
     case publisherConflict
+    case ineligible
     case sessionExpired
     case offline
     case service
@@ -27,6 +35,9 @@ final class ProviderLocationRepository {
         self.client = client
     }
 
+    /// `appointmentID` não é mais enviado à RPC (o servidor infere o atendimento ativo sozinho) —
+    /// mantido na assinatura só para não mexer nos chamadores (`ProviderLocationTracker`), que ainda
+    /// precisam dele para outras finalidades (ex. `GetAppointmentProviderLocationParams`).
     func publish(
         appointmentID: UUID,
         fix: DeviceLocationFix,
@@ -34,7 +45,6 @@ final class ProviderLocationRepository {
         sequence: Int64
     ) async -> PublishLocationResult {
         let params = PublishProviderLocationParams(
-            p_appointment_id: appointmentID,
             p_latitude: Decimal(fix.latitude),
             p_longitude: Decimal(fix.longitude),
             p_accuracy_m: Decimal(fix.horizontalAccuracy),
@@ -48,14 +58,14 @@ final class ProviderLocationRepository {
         )
         do {
             let result: PublishProviderLocationResult = try await client
-                .rpc("publish_provider_location", params: params)
+                .rpc("publish_mobile_provider_location", params: params)
                 .execute()
                 .value
             switch result.outcome {
             case .published:
                 guard let version = result.version, let publishedAt = result.publishedAt else { return .unknown }
                 return .published(version: version, publishedAt: publishedAt)
-            case .ignoredOlder:
+            case .ignored:
                 return .ignoredOlder
             case .publisherConflict:
                 return .publisherConflict
@@ -66,15 +76,17 @@ final class ProviderLocationRepository {
     }
 
     /// Melhor esforço — falhas de rede/servidor não são reportadas à UI (o app está encerrando o
-    /// tracking de qualquer forma).
+    /// tracking de qualquer forma). `appointmentID` idem — não vai mais no payload.
     func stop(appointmentID: UUID, trackerInstanceID: UUID) async {
-        let params = StopProviderLocationParams(p_appointment_id: appointmentID, p_tracker_instance_id: trackerInstanceID)
-        _ = try? await client.rpc("stop_provider_location", params: params).execute()
+        let params = StopProviderLocationParams(p_tracker_instance_id: trackerInstanceID)
+        _ = try? await client.rpc("stop_mobile_provider_location", params: params).execute()
     }
 
     private func classify(_ error: Error) -> PublishLocationResult {
         if let postgrestError = error as? PostgrestError {
-            return postgrestError.code == "42501" ? .sessionExpired : .service
+            if postgrestError.code == "42501" { return .sessionExpired }
+            if postgrestError.code == "22023" { return .ineligible }
+            return .service
         }
         if let urlError = error as? URLError {
             switch urlError.code {

@@ -3,15 +3,15 @@
 //  pitgo
 //
 
+import Combine
 import Foundation
 
-@Observable
 @MainActor
-final class SignUpViewModel {
-    private(set) var state = SignUpUiState()
+final class SignUpViewModel: ObservableObject {
+    @Published private(set) var state = SignUpUiState()
     /// Definido somente quando `state.submission == .success`; a pendência de onboarding já foi
     /// persistida pelo Repository antes deste valor existir (ver `SignUpRepository.ensureProfile`).
-    private(set) var completedUserID: UUID?
+    @Published private(set) var completedUserID: UUID?
 
     private let repository: SignUpRepository
     private var focusRequestID = 0
