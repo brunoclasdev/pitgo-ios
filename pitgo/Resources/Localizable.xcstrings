@@ -99,6 +99,9 @@
         }
       }
     },
+    "A última tentativa de pagamento foi recusada. Tente novamente ou escolha outra forma de pagamento." : {
+
+    },
     "A verificação de endereço expirou. Verifique novamente." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -298,6 +301,9 @@
 
     },
     "Atendimento em andamento" : {
+
+    },
+    "Atendimento em andamento." : {
 
     },
     "Atendimento encerrado." : {
@@ -537,6 +543,9 @@
         }
       }
     },
+    "Cancelar pagamento" : {
+
+    },
     "Cancelar solicitação" : {
 
     },
@@ -721,6 +730,9 @@
     "Confirmar cancelamento" : {
 
     },
+    "Confirmar cartão" : {
+
+    },
     "Confirmar divergência de endereço?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -742,6 +754,9 @@
           }
         }
       }
+    },
+    "Confirmar pagamento" : {
+
     },
     "Confirmar senha" : {
       "extractionState" : "manual",
@@ -1003,6 +1018,9 @@
     "Desligado, você fica invisível para novos clientes — atendimentos já aceitos continuam normalmente." : {
 
     },
+    "Digite o CVV do cartão para confirmar o pagamento." : {
+
+    },
     "Disponível" : {
 
     },
@@ -1232,6 +1250,9 @@
           }
         }
       }
+    },
+    "Estamos aguardando a confirmação do Mercado Pago." : {
+
     },
     "Este atendimento foi encerrado." : {
       "extractionState" : "manual",

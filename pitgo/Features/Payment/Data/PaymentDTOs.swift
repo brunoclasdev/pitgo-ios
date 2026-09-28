@@ -16,7 +16,10 @@ import Foundation
 struct CreatePaymentRequestBody: Encodable {
     let request_id: UUID
     let dispatch_kind: String
-    let amount: Decimal
+    /// MOBILE_SEQUENTIAL envia o preço esperado. Para PITTEC_AUTO_SEQUENTIAL o backend
+    /// calcula o valor congelado do pagamento de teste (R$1–R$2) a partir do atendimento;
+    /// enviar o orçamento aqui faria a RPC rejeitar com PRICE_CHANGED.
+    let amount: Decimal?
     let method: String
     let saved_card_id: UUID?
     let card_security_code_token: String?
@@ -56,6 +59,20 @@ struct PaymentStatusEnvelope: Decodable {
         case paymentID = "payment_id"
         case status
         case method
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        outcome = try container.decode(String.self, forKey: .outcome)
+        paymentID = try container.decodeIfPresent(UUID.self, forKey: .paymentID)
+        status = try container.decodeIfPresent(PaymentStatus.self, forKey: .status)
+        // The method is useful metadata only. Do not discard an otherwise valid terminal
+        // payment status if an older backend returns a method alias not known by this app.
+        if let rawMethod = try container.decodeIfPresent(String.self, forKey: .method) {
+            method = PaymentMethodKind(rawValue: rawMethod.uppercased())
+        } else {
+            method = nil
+        }
     }
 
     var isFound: Bool { outcome == PaymentStatusOutcome.found.rawValue }

@@ -204,8 +204,15 @@ final class PitTecRepository {
         return await call("complete_mobile_appointment", params: Params(p_appointment_id: appointmentID, p_expected_revision: expectedRevision))
     }
 
-    /// "Cheguei" — específico do PitTec (ACCEPTED → IN_PROGRESS); `start_mobile_appointment` (`013`)
-    /// não serve aqui porque o vocabulário/transição é outro.
+    func startAppointment(appointmentID: UUID, expectedRevision: Int64) async -> PitTecOperationResult {
+        struct Params: Encodable {
+            let p_appointment_id: UUID
+            let p_expected_revision: Int64
+        }
+        return await call("start_mobile_appointment", params: Params(p_appointment_id: appointmentID, p_expected_revision: expectedRevision))
+    }
+
+    /// Registra arrived_at; o atendimento permanece ACCEPTED até start_mobile_appointment.
     func arrive(requestID: UUID, appointmentID: UUID, expectedRevision: Int64) async -> PitTecOperationResult {
         struct Params: Encodable {
             let p_request_id: UUID
@@ -255,6 +262,9 @@ final class PitTecRepository {
         searchChannel = channel
         searchSubscription = channel.onBroadcast(event: "*") { _ in onInvalidated() }
         try? await channel.subscribeWithError()
+        // A inscrição concluída não implica que o primeiro broadcast ainda esteja disponível.
+        // Força uma leitura autoritativa para cobrir o aceite ocorrido durante a conexão.
+        onInvalidated()
     }
 
     func unsubscribeSearch() async {
@@ -336,7 +346,8 @@ final class PitTecRepository {
             switch postgrestError.code {
             case "42501": return .sessionExpired
             case "P0002": return .notFound
-            case "P0001" where postgrestError.message.contains("PAYMENT_REQUIRED"): return .paymentRequired
+            case "P0001" where postgrestError.message.contains("PAYMENT_REQUIRED"),
+                 "22023" where postgrestError.message.contains("PAYMENT_REQUIRED"): return .paymentRequired
             case "22023", "23505", "P0001": return .contract
             default: return .unknown
             }

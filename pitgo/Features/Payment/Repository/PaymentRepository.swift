@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import os
 import Supabase
 
 enum PaymentCreationOutcome {
@@ -29,6 +30,7 @@ enum PaymentRefundOutcome {
 }
 
 final class PaymentRepository {
+    private static let logger = Logger(subsystem: "com.trustarx.pitgo", category: "PaymentRepository")
     private let client: SupabaseClient
 
     private var channel: RealtimeChannelV2?
@@ -53,7 +55,9 @@ final class PaymentRepository {
         let body = CreatePaymentRequestBody(
             request_id: requestID,
             dispatch_kind: dispatchKind.rawValue,
-            amount: amount,
+            // Android omits `amount` for PitTec for the same reason: the server owns the
+            // frozen test amount and must not compare it with the provider quote.
+            amount: dispatchKind == .pittecAutoSequential ? nil : amount,
             method: method.rawValue,
             saved_card_id: savedCardID,
             card_security_code_token: cardSecurityCodeToken,
@@ -73,6 +77,7 @@ final class PaymentRepository {
             )
             return .created(result)
         } catch {
+            Self.logger.error("Falha ao consultar status do pagamento: \(String(describing: error), privacy: .public)")
             return .failure(classify(error))
         }
     }
@@ -85,10 +90,12 @@ final class PaymentRepository {
                 .execute()
                 .value
             guard envelope.isFound else { return .notFound }
-            guard let paymentID = envelope.paymentID, let status = envelope.status, let method = envelope.method else {
+            // `method` is metadata and was absent from one deployed snapshot version. It must
+            // not prevent a terminal APPROVED/REJECTED status from reaching the checkout.
+            guard let paymentID = envelope.paymentID, let status = envelope.status else {
                 return .failure(.unknown)
             }
-            return .found(paymentID: paymentID, status: status, method: method)
+            return .found(paymentID: paymentID, status: status, method: envelope.method ?? .savedCard)
         } catch {
             return .failure(classify(error))
         }

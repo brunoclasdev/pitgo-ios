@@ -104,9 +104,37 @@ final class PitTecIncomingRequestViewModel: ObservableObject {
     }
 
     func arrive() {
-        guard let (searchID, appointment) = currentReservedAppointment, pendingAction == nil else { return }
+        guard let (_, appointment) = currentReservedAppointment, pendingAction == nil else { return }
         run(.start, expectedRevision: appointment.revision) { [repository] in
-            await repository.arrive(requestID: searchID, appointmentID: appointment.appointmentID, expectedRevision: appointment.revision)
+            // Android envia um UUID da operação. O searchID identifica a busca e não
+            // deve ser reutilizado como request_id da transição.
+            // Reconsulta antes de enviar: a aprovação do pagamento também altera a
+            // revisão do agendamento e o snapshot exibido pode ter ficado defasado.
+            let latestAppointment: PitTecAppointment
+            switch await repository.getActiveDispatch() {
+            case let .snapshot(snapshot) where snapshot.appointment?.appointmentID == appointment.appointmentID:
+                guard let refreshed = snapshot.appointment else { return .failure(.notFound) }
+                latestAppointment = refreshed
+            case let .failure(reason):
+                return .failure(reason)
+            default:
+                return .failure(.notFound)
+            }
+
+            return await repository.arrive(
+                requestID: UUID(),
+                appointmentID: latestAppointment.appointmentID,
+                expectedRevision: latestAppointment.revision
+            )
+        }
+    }
+
+    func startAppointment() {
+        guard case let .reserved(snapshot, nil) = state,
+              snapshot.hasArrived, snapshot.allowedActions.contains(.start),
+              let appointment = snapshot.appointment, pendingAction == nil else { return }
+        run(.start, expectedRevision: appointment.revision) { [repository] in
+            await repository.startAppointment(appointmentID: appointment.appointmentID, expectedRevision: appointment.revision)
         }
     }
 
@@ -155,7 +183,7 @@ final class PitTecIncomingRequestViewModel: ObservableObject {
                 stopPolling()
                 repository.disconnectAll()
             } else {
-                state = .failure
+                state = .failure(reason)
             }
         }
     }
@@ -233,5 +261,5 @@ enum ProviderDispatchUiStatePitTec: Equatable {
     case incoming(PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?)
     case reserved(PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?)
     case sessionExpired
-    case failure
+    case failure(PitTecFailureReason)
 }

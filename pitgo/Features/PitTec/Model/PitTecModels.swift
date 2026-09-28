@@ -17,6 +17,7 @@ enum PitTecOfferAction: String, Decodable, Hashable {
     case accept = "ACCEPT"
     case decline = "DECLINE"
     case arrive = "ARRIVE"
+    case start = "START"
     case complete = "COMPLETE"
     /// `021`/migration `20260913010000` — ações do cliente sobre o orçamento (`respond_to_pittec_quote`).
     case confirmQuote = "CONFIRM_QUOTE"
@@ -73,9 +74,29 @@ struct PitTecQuote: Decodable, Equatable {
     let clientConfirmedAt: Date?
 
     enum CodingKeys: String, CodingKey {
+        case serviceAmount = "service_amount"
+        case distanceChargeAmount = "distance_charge_amount"
         case amount, currency, version
+        case providerAmount = "provider_amount"
+        case customerTotalAmount = "customer_total_amount"
+        case expiresAt = "expires_at"
         case clientConfirmationDeadline = "client_confirmation_deadline"
         case clientConfirmedAt = "client_confirmed_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // The current backend exposes a provider quote as `provider_amount` and a
+        // client quote as `customer_total_amount`. Older snapshots used `amount`.
+        amount = try container.decodeIfPresent(Decimal.self, forKey: .customerTotalAmount)
+            ?? container.decodeIfPresent(Decimal.self, forKey: .providerAmount)
+            ?? container.decodeIfPresent(Decimal.self, forKey: .amount)
+            ?? 0
+        currency = try container.decodeIfPresent(String.self, forKey: .currency) ?? "BRL"
+        version = try container.decodeIfPresent(Int64.self, forKey: .version) ?? 1
+        clientConfirmationDeadline = try container.decodeIfPresent(Date.self, forKey: .clientConfirmationDeadline)
+            ?? container.decodeIfPresent(Date.self, forKey: .expiresAt)
+        clientConfirmedAt = try container.decodeIfPresent(Date.self, forKey: .clientConfirmedAt)
     }
 }
 
@@ -89,6 +110,10 @@ struct PitTecProviderIdentity: Decodable, Equatable {
         case providerID = "provider_id"
         case displayName = "display_name"
     }
+}
+
+struct PitTecPaymentSnapshot: Decodable, Equatable {
+    let status: String
 }
 
 struct PitTecAppointment: Decodable, Equatable {
@@ -127,6 +152,27 @@ struct PitTecAppointment: Decodable, Equatable {
         case clientConfirmedQuoteVersion = "client_confirmed_quote_version"
         case quote
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let quote = try container.decodeIfPresent(PitTecQuote.self, forKey: .quote)
+        appointmentID = try container.decode(UUID.self, forKey: .appointmentID)
+        status = try container.decode(AppointmentStatus.self, forKey: .status)
+        responseDeadline = try container.decodeIfPresent(Date.self, forKey: .responseDeadline)
+        revision = try container.decode(Int64.self, forKey: .revision)
+        acceptedAt = try container.decodeIfPresent(Date.self, forKey: .acceptedAt)
+        arrivedAt = try container.decodeIfPresent(Date.self, forKey: .arrivedAt)
+        cancelledBy = try container.decodeIfPresent(CancelledBy.self, forKey: .cancelledBy)
+        quotedPrice = try container.decodeIfPresent(Decimal.self, forKey: .quotedPrice) ?? quote?.amount ?? 0
+        isFree = try container.decodeIfPresent(Bool.self, forKey: .isFree) ?? false
+        quoteVersion = try container.decodeIfPresent(Int64.self, forKey: .quoteVersion) ?? quote?.version ?? 1
+        clientConfirmationDeadline = try container.decodeIfPresent(Date.self, forKey: .clientConfirmationDeadline)
+            ?? quote?.clientConfirmationDeadline
+        clientConfirmedAt = try container.decodeIfPresent(Date.self, forKey: .clientConfirmedAt)
+            ?? quote?.clientConfirmedAt
+        clientConfirmedQuoteVersion = try container.decodeIfPresent(Int64.self, forKey: .clientConfirmedQuoteVersion)
+        self.quote = quote
+    }
 }
 
 /// Ocorrência mais recente da busca (`service_searches.last_event`) — usada para distinguir "o
@@ -164,6 +210,7 @@ struct PitTecDispatchSnapshot: Decodable, Equatable {
     let offer: PitTecOffer?
     let provider: PitTecProviderIdentity?
     let appointment: PitTecAppointment?
+    let payment: PitTecPaymentSnapshot?
 
     enum CodingKeys: String, CodingKey {
         case searchID = "search_id"
@@ -176,12 +223,11 @@ struct PitTecDispatchSnapshot: Decodable, Equatable {
         case allowedActions = "allowed_actions"
         case lastEvent = "last_event"
         case lastEventAt = "last_event_at"
-        case offer, provider, appointment
+        case offer, provider, appointment, payment
     }
 
-    /// "Chegou" no vocabulário PitTec é `IN_PROGRESS` (design decision #4 do plan.md) — antes disso,
-    /// `ACCEPTED` significa "a caminho".
-    var hasArrived: Bool { appointment?.status == .inProgress }
+    /// A chegada preenche arrived_at mantendo ACCEPTED; START inicia o atendimento.
+    var hasArrived: Bool { appointment?.arrivedAt != nil || appointment?.status == .inProgress }
 
     /// Um evento só é "recente" (exibível como aviso pontual) se aconteceu depois da última troca de
     /// revisão-1 — aproximado aqui apenas exibindo o evento enquanto o status ainda for `SEARCHING`,
@@ -236,7 +282,7 @@ struct PitTecFlowResult: Decodable {
 
 // MARK: - Estados de tela
 
-enum PitTecFailureReason {
+enum PitTecFailureReason: Equatable {
     case offline
     case timeout
     case sessionExpired

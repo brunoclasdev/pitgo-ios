@@ -50,6 +50,22 @@ enum PaymentStatus: String, Decodable, Hashable {
     case refunded = "REFUNDED"
     case refundFailed = "REFUND_FAILED"
 
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self).uppercased()
+        switch value {
+        case "DECLINED", "FAILED": self = .rejected
+        case "CANCELED": self = .cancelled
+        default:
+            guard let status = Self(rawValue: value) else {
+                throw DecodingError.dataCorruptedError(
+                    in: try decoder.singleValueContainer(),
+                    debugDescription: "Status de pagamento desconhecido: \(value)"
+                )
+            }
+            self = status
+        }
+    }
+
     var isRefundOutcome: Bool {
         switch self {
         case .refundPending, .refunded, .refundFailed: true

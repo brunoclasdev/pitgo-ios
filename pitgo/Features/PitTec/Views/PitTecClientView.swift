@@ -89,6 +89,10 @@ struct PitTecClientView: View {
                         pittecPaymentContext = nil
                         viewModel.refreshAfterPayment()
                     },
+                    onCancelled: {
+                        pittecPaymentContext = nil
+                        viewModel.cancel()
+                    },
                     onSessionExpired: onSessionExpired
                 )
             }
@@ -382,6 +386,12 @@ struct PitTecClientView: View {
                 .accessibilityAddTraits(.isHeader)
             Text("Orçamento confirmado — falta só pagar.")
                 .font(PitGoTypography.body)
+            if snapshot.payment?.status == "REJECTED" {
+                Text("A última tentativa de pagamento foi recusada. Tente novamente ou escolha outra forma de pagamento.")
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
             Text(formattedAmount(snapshot.appointment?.quotedPrice ?? 0))
                 .font(PitGoTypography.sectionTitle)
             if let appointment = snapshot.appointment, snapshot.allowedActions.contains(.openPayment) {
@@ -397,6 +407,13 @@ struct PitTecClientView: View {
                 .foregroundStyle(.white)
                 .background(tokens.accent)
                 .clipShape(Capsule())
+            }
+            if snapshot.allowedActions.contains(.cancel) {
+                Button("Cancelar pagamento", role: .cancel) {
+                    viewModel.cancel()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .disabled(isPendingCancel)
             }
             Spacer()
         }
@@ -469,6 +486,10 @@ struct PitTecClientView: View {
         let providerLocation = CLLocation(latitude: context.providerLatitude, longitude: context.providerLongitude)
         let clientLocation = CLLocation(latitude: context.clientLatitude, longitude: context.clientLongitude)
         let meters = providerLocation.distance(from: clientLocation)
+        guard meters.isFinite, meters >= 0 else { return "Distância estimada indisponível no momento." }
+        if meters < 1000 {
+            return String(format: "Estimativa direta: %.0f m (linha reta, não é a rota real)", meters)
+        }
         let km = meters / 1000
         return String(format: "Estimativa direta: %.1f km (linha reta, não é a rota real)", km)
     }

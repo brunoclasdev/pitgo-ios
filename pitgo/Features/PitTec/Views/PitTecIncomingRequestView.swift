@@ -99,8 +99,8 @@ struct PitTecIncomingRequestView: View {
             }
         case .sessionExpired:
             Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .failure:
-            failureState()
+        case let .failure(reason):
+            failureState(reason: reason)
         }
     }
 
@@ -160,17 +160,30 @@ struct PitTecIncomingRequestView: View {
     /// sem mapa. Sai sozinha assim que o status muda pelo mesmo canal Realtime já usado
     /// (`subscribeToProvider`), sem nenhum polling adicional.
     private func awaitingConfirmationState(_ snapshot: PitTecDispatchSnapshot) -> some View {
-        VStack(spacing: 16) {
+        let paymentWasRejected = snapshot.payment?.status == "REJECTED"
+        return VStack(spacing: 16) {
             Spacer()
-            ProgressView()
-            Text(waitingTitle(for: snapshot.appointment?.status))
+            if paymentWasRejected {
+                Image(systemName: "xmark.circle")
+                    .font(.system(size: 40))
+                    .foregroundStyle(tokens.textSecondary)
+            } else {
+                ProgressView()
+            }
+            Text(paymentWasRejected ? "Pagamento recusado" : waitingTitle(for: snapshot.appointment?.status))
                 .font(PitGoTypography.sectionTitle)
                 .accessibilityAddTraits(.isHeader)
-            Text(waitingMessage(for: snapshot.appointment?.status))
+            Text(paymentWasRejected
+                 ? "O pagamento do cliente foi recusado. O atendimento continua aguardando uma nova tentativa."
+                 : waitingMessage(for: snapshot.appointment?.status))
                 .font(PitGoTypography.body)
                 .foregroundStyle(tokens.textSecondary)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.updatesFrequently)
+            if snapshot.allowedActions.contains(.cancel) {
+                Button("Cancelar atendimento") { viewModel.cancel(reason: "PAYMENT_REJECTED") }
+                    .frame(minHeight: 44)
+            }
             Spacer()
         }
         .padding(24)
@@ -220,13 +233,22 @@ struct PitTecIncomingRequestView: View {
 
     private func reservedActions(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(snapshot.hasArrived ? "Você chegou ao local." : "A caminho do cliente.")
+            Text(snapshot.appointment?.status == .inProgress ? "Atendimento em andamento." : snapshot.hasArrived ? "Você chegou ao local." : "A caminho do cliente.")
                 .font(PitGoTypography.sectionTitle)
                 .accessibilityAddTraits(.isHeader)
 
-            if !snapshot.hasArrived {
+            if !snapshot.hasArrived && snapshot.allowedActions.contains(.arrive) {
                 Button(action: { viewModel.arrive() }) {
                     actionLabel("Cheguei", isLoading: isPending(pendingAction, .start))
+                }
+                .foregroundStyle(.white)
+                .background(tokens.accent)
+                .clipShape(Capsule())
+                .frame(minHeight: 56)
+                .disabled(pendingAction != nil)
+            } else if snapshot.allowedActions.contains(.start) {
+                Button(action: { viewModel.startAppointment() }) {
+                    actionLabel("Iniciar atendimento", isLoading: isPending(pendingAction, .start))
                 }
                 .foregroundStyle(.white)
                 .background(tokens.accent)
@@ -255,10 +277,10 @@ struct PitTecIncomingRequestView: View {
         .background(tokens.surface)
     }
 
-    private func failureState() -> some View {
+    private func failureState(reason: PitTecFailureReason) -> some View {
         VStack(spacing: 16) {
             Spacer()
-            Text("Não foi possível concluir agora. Tente novamente.")
+            Text(failureMessage(for: reason))
                 .font(PitGoTypography.body)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.updatesFrequently)
@@ -270,6 +292,19 @@ struct PitTecIncomingRequestView: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func failureMessage(for reason: PitTecFailureReason) -> String {
+        switch reason {
+        case .paymentRequired:
+            return "O pagamento ainda não foi liberado pelo Mercado Pago. Aguarde a confirmação e tente novamente."
+        case .sessionExpired:
+            return "Sua sessão expirou. Entre novamente para continuar."
+        case .offline:
+            return "Sem conexão com a internet. Verifique sua rede e tente novamente."
+        default:
+            return "Não foi possível concluir agora. Tente novamente."
+        }
     }
 
     private func isPending(_ pendingAction: PendingDispatchAction?, _ kind: DispatchActionKind) -> Bool {

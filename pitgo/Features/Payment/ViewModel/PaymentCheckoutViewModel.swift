@@ -19,6 +19,8 @@ enum PaymentCheckoutUiState: Equatable {
     /// Catálogo sem preço mínimo válido para este serviço — nunca cobra um valor inventado.
     case invalidService
     case selectingMethod(amount: Decimal, savedCards: [SavedCard])
+    case loadingCardContext
+    case confirmingCard(SavedCardTokenizationContext)
     case creatingPayment
     case awaitingPix(PaymentPixDetails)
     case awaitingCardConfirmation
@@ -53,6 +55,7 @@ final class PaymentCheckoutViewModel: ObservableObject {
     private var amount: Decimal = 0
     private var savedCards: [SavedCard] = []
     private var isStarted = false
+    private var approvalPollTask: Task<Void, Never>?
 
     init(
         serviceID: UUID,
@@ -81,6 +84,8 @@ final class PaymentCheckoutViewModel: ObservableObject {
     }
 
     func stop() {
+        approvalPollTask?.cancel()
+        approvalPollTask = nil
         paymentRepository.disconnect()
     }
 
@@ -107,9 +112,22 @@ final class PaymentCheckoutViewModel: ObservableObject {
             amount = minimumPrice
         }
 
+        // Mantém os cartões disponíveis também ao restaurar uma tentativa recusada.
         if case let .success(cards) = await savedCardRepository.list() {
             savedCards = cards
         }
+
+        // Igual ao Android: antes de exibir a seleção de método, recupera uma tentativa já
+        // criada para este requestID. Isso é essencial no PitTec, onde o sheet pode ser recriado
+        // enquanto o backend já marcou o pagamento como REJECTED/APPROVED.
+        if case let .found(_, status, _) = await paymentRepository.status(requestID: requestID) {
+            applyStatus(status)
+            if isAwaitingConfirmation {
+                observeApproval()
+            }
+            return
+        }
+
         state = .selectingMethod(amount: amount, savedCards: savedCards)
     }
 
@@ -118,22 +136,40 @@ final class PaymentCheckoutViewModel: ObservableObject {
     }
 
     func payWithSavedCard(_ card: SavedCard) {
-        createPayment(method: .savedCard, savedCardID: card.id)
+        guard case .selectingMethod = state else { return }
+        state = .loadingCardContext
+        Task { [weak self] in
+            guard let self else { return }
+            switch await savedCardRepository.tokenizationContext(savedCardID: card.id) {
+            case let .success(context): state = .confirmingCard(context)
+            case .failure: state = .failure
+            }
+        }
+    }
+
+    func confirmSavedCard(token: String, context: SavedCardTokenizationContext) {
+        guard case .confirmingCard = state else { return }
+        state = .selectingMethod(amount: amount, savedCards: savedCards)
+        createPayment(method: .savedCard, savedCardID: context.savedCardID, cardSecurityCodeToken: token)
     }
 
     /// Pix expirado ou falha — gera uma nova cobrança com o MESMO `requestID` (idempotência,
     /// `research.md §6`: o backend reconhece que a tentativa anterior não está mais "viva" e cria
     /// uma nova cobrança, sem duplicar `payments`).
     func retryPix() {
+        guard case .expired = state else { return }
+        chooseAnotherMethod()
         createPayment(method: .pix, savedCardID: nil)
     }
 
     func chooseAnotherMethod() {
+        approvalPollTask?.cancel()
+        approvalPollTask = nil
         paymentRepository.disconnect()
         state = .selectingMethod(amount: amount, savedCards: savedCards)
     }
 
-    private func createPayment(method: PaymentMethodKind, savedCardID: UUID?) {
+    private func createPayment(method: PaymentMethodKind, savedCardID: UUID?, cardSecurityCodeToken: String? = nil) {
         guard case .selectingMethod = state, amount > 0 else { return }
         state = .creatingPayment
         Task { [weak self] in
@@ -144,6 +180,7 @@ final class PaymentCheckoutViewModel: ObservableObject {
                 amount: self.amount,
                 method: method,
                 savedCardID: savedCardID,
+                cardSecurityCodeToken: cardSecurityCodeToken,
                 appointmentID: self.pittecContext?.appointmentID,
                 quoteVersion: self.pittecContext?.quoteVersion
             ) {
@@ -176,16 +213,26 @@ final class PaymentCheckoutViewModel: ObservableObject {
     /// Canal Realtime como sinal primário; `10s` sem confirmação cai no fallback por RPC
     /// (`contracts/payment-realtime-ui.md`).
     private func observeApproval() {
+        approvalPollTask?.cancel()
+        // O Realtime é opcional: ele só acelera a atualização e não pode bloquear o polling.
         Task { [weak self] in
             guard let self else { return }
             await self.paymentRepository.subscribe(requestID: self.requestID) { [weak self] in
-                Task { @MainActor in self?.refreshStatus() }
+                Task { @MainActor in
+                    guard let self else { return }
+                    await self.refreshStatus()
+                }
             }
         }
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 10_000_000_000)
-            guard let self, self.isAwaitingConfirmation else { return }
-            self.refreshStatus()
+        approvalPollTask = Task { [weak self] in
+            guard let self else { return }
+            // Consulta imediatamente e depois continua até um estado terminal. O pagamento
+            // pode mudar para REJECTED/APPROVED sem qualquer evento Realtime no device.
+            while !Task.isCancelled, self.isAwaitingConfirmation {
+                await self.refreshStatus()
+                guard !Task.isCancelled, self.isAwaitingConfirmation else { return }
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+            }
         }
     }
 
@@ -196,17 +243,16 @@ final class PaymentCheckoutViewModel: ObservableObject {
         }
     }
 
-    private func refreshStatus() {
-        Task { [weak self] in
-            guard let self else { return }
-            if case let .found(_, status, _) = await self.paymentRepository.status(requestID: self.requestID) {
-                self.applyStatus(status)
-            }
+    private func refreshStatus() async {
+        guard isAwaitingConfirmation else { return }
+        if case let .found(_, status, _) = await paymentRepository.status(requestID: requestID) {
+            // Uma consulta anterior não pode sobrescrever uma nova seleção/tentativa.
+            guard !Task.isCancelled, isAwaitingConfirmation else { return }
+            applyStatus(status)
         }
     }
 
     private func applyStatus(_ status: PaymentStatus) {
-        guard isAwaitingConfirmation else { return }
         switch status {
         case .approved:
             state = .approved
@@ -218,7 +264,9 @@ final class PaymentCheckoutViewModel: ObservableObject {
             state = .expired
             paymentRepository.disconnect()
         case .pending:
-            break
+            if !isAwaitingConfirmation {
+                state = .awaitingCardConfirmation
+            }
         case .cancelled, .refundPending, .refunded, .refundFailed:
             state = .failure
             paymentRepository.disconnect()
@@ -231,6 +279,8 @@ final class PaymentCheckoutViewModel: ObservableObject {
             state = .sessionExpired
         case .payerDocumentRequired:
             state = .payerDocumentRequired
+        case .cardRejected:
+            state = .declined
         default:
             state = .failure
         }

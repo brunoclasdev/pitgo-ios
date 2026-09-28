@@ -78,7 +78,11 @@ final class PitTecClientViewModel: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: UInt64(self.pollInterval * 1_000_000_000))
                 guard !Task.isCancelled else { return }
-                self.refresh()
+                // Aguarda a leitura aqui para impedir duas RPCs concorrentes. Uma resposta
+                // antiga que chegasse depois da nova podia re-renderizar um status obsoleto.
+                let result = await self.repository.getActiveDispatch()
+                guard !Task.isCancelled else { return }
+                self.applyIfChanged(result)
             }
         }
     }
@@ -179,7 +183,26 @@ final class PitTecClientViewModel: ObservableObject {
                 result = await repository.cancelSearch(searchID: snapshot.searchID, expectedRevision: snapshot.revision)
             }
             pendingAction = nil
-            apply(result)
+            switch result {
+            case .noActiveFlow:
+                returnToDiscovery()
+            case let .snapshot(snapshot) where snapshot.status.isTerminal:
+                returnToDiscovery()
+            default:
+                apply(result)
+            }
+        }
+    }
+
+    private func returnToDiscovery() {
+        pendingAction = nil
+        acceptedRevision = -1
+        lastConfirmedSnapshot = nil
+        routeContext = nil
+        stopPolling()
+        repository.disconnectAll()
+        Task { [weak self] in
+            await self?.loadDiscovery()
         }
     }
 
@@ -235,7 +258,25 @@ final class PitTecClientViewModel: ObservableObject {
     private func refresh() {
         Task { [weak self] in
             guard let self else { return }
-            apply(await repository.getActiveDispatch())
+            applyIfChanged(await repository.getActiveDispatch())
+        }
+    }
+
+    /// O backend pode atualizar appointment e busca no mesmo fluxo sem que todas as versões
+    /// intermediárias sejam observadas pelo Realtime. O snapshot completo, e não apenas a revisão
+    /// da busca, é a fonte de comparação do cliente.
+    private func applyIfChanged(_ result: PitTecOperationResult) {
+        switch result {
+        case let .snapshot(snapshot):
+            if snapshot != lastConfirmedSnapshot {
+                applySnapshot(snapshot)
+            } else {
+                // A localização de acompanhamento muda sem alterar a revisão do dispatch.
+                // Atualizar o contexto aqui evita manter uma distância antiga (inclusive 0 m).
+                refreshRouteContextIfNeeded(snapshot)
+            }
+        case .noActiveFlow, .failure:
+            apply(result)
         }
     }
 
@@ -262,7 +303,7 @@ final class PitTecClientViewModel: ObservableObject {
     }
 
     private func applySnapshot(_ snapshot: PitTecDispatchSnapshot) {
-        guard snapshot.revision >= acceptedRevision || snapshot.status.isTerminal else { return }
+        guard snapshot.revision >= acceptedRevision || snapshot.status.isTerminal || snapshot != lastConfirmedSnapshot else { return }
         acceptedRevision = snapshot.revision
         lastConfirmedSnapshot = snapshot
         if snapshot.status.isTerminal {

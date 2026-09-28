@@ -15,6 +15,11 @@ enum SavedCardListResult {
     case failure(SavedCardFailureReason)
 }
 
+enum SavedCardContextResult {
+    case success(SavedCardTokenizationContext)
+    case failure(SavedCardFailureReason)
+}
+
 enum SavedCardSaveResult {
     case success(SavedCard)
     case failure(SavedCardFailureReason)
@@ -36,6 +41,19 @@ final class SavedCardRepository {
         do {
             let cards: [SavedCard] = try await client.rpc("list_saved_cards").execute().value
             return .success(cards)
+        } catch {
+            return .failure(classify(error))
+        }
+    }
+
+    func tokenizationContext(savedCardID: UUID) async -> SavedCardContextResult {
+        struct Params: Encodable { let p_saved_card_id: UUID }
+        do {
+            let context: SavedCardTokenizationContext = try await client
+                .rpc("get_saved_card_tokenization_context", params: Params(p_saved_card_id: savedCardID))
+                .execute()
+                .value
+            return .success(context)
         } catch {
             return .failure(classify(error))
         }

@@ -11,15 +11,23 @@
 //  checkout nunca despacha nada sozinho.
 //
 
+import CoreMethods
+import os
 import SwiftUI
 
 struct PaymentCheckoutView: View {
+    private static let logger = Logger(subsystem: "com.trustarx.pitgo", category: "PaymentCheckout")
     @Environment(\.pitGoTokens) private var tokens
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: PaymentCheckoutViewModel
     @State private var copiedFeedback = false
+    @State private var securityCodeField: SecurityCodeTextField?
+    @State private var cardTokenError: String?
+    @State private var tokenizingCard = false
+    @State private var presentedCardContext: SavedCardTokenizationContext?
 
     let onApproved: (UUID) -> Void
+    let onCancelled: () -> Void
     let onSessionExpired: () -> Void
 
     init(
@@ -30,6 +38,7 @@ struct PaymentCheckoutView: View {
         savedCardRepository: SavedCardRepository,
         pittecContext: PitTecPaymentContext? = nil,
         onApproved: @escaping (UUID) -> Void,
+        onCancelled: @escaping () -> Void = {},
         onSessionExpired: @escaping () -> Void
     ) {
         _viewModel = StateObject(wrappedValue: PaymentCheckoutViewModel(
@@ -41,6 +50,7 @@ struct PaymentCheckoutView: View {
             pittecContext: pittecContext
         ))
         self.onApproved = onApproved
+        self.onCancelled = onCancelled
         self.onSessionExpired = onSessionExpired
     }
 
@@ -54,7 +64,7 @@ struct PaymentCheckoutView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancelar", action: { dismiss() })
+                        Button("Cancelar", action: cancelCheckout)
                             .disabled(isBusy)
                     }
                 }
@@ -69,12 +79,20 @@ struct PaymentCheckoutView: View {
             if case .sessionExpired = state {
                 onSessionExpired()
             }
+            if case let .confirmingCard(context) = state {
+                presentedCardContext = context
+            } else {
+                presentedCardContext = nil
+            }
+        }
+        .sheet(item: $presentedCardContext) { context in
+            savedCardSecurityCodeSheet(context)
         }
     }
 
     private var isBusy: Bool {
         switch viewModel.state {
-        case .creatingPayment, .awaitingPix, .awaitingCardConfirmation: true
+        case .loadingCardContext, .confirmingCard, .creatingPayment, .awaitingPix, .awaitingCardConfirmation: true
         default: false
         }
     }
@@ -82,7 +100,7 @@ struct PaymentCheckoutView: View {
     @ViewBuilder
     private var content: some View {
         switch viewModel.state {
-        case .loadingAmount, .creatingPayment:
+        case .loadingAmount, .loadingCardContext, .creatingPayment:
             ProgressView()
         case .invalidService:
             messageState(
@@ -92,6 +110,8 @@ struct PaymentCheckoutView: View {
             )
         case let .selectingMethod(amount, savedCards):
             selectingMethodState(amount: amount, savedCards: savedCards)
+        case .confirmingCard:
+            ProgressView()
         case let .awaitingPix(pix):
             awaitingPixState(pix)
         case .awaitingCardConfirmation:
@@ -99,14 +119,21 @@ struct PaymentCheckoutView: View {
                 ProgressView()
                 Text("Confirmando pagamento…")
                     .font(PitGoTypography.body)
+                Text("Estamos aguardando a confirmação do Mercado Pago.")
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
+                    .multilineTextAlignment(.center)
+                Button("Cancelar pagamento", role: .cancel, action: cancelCheckout)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
         case .approved:
             messageState(symbol: "checkmark.circle.fill", message: "Pagamento aprovado.", primaryAction: nil)
         case .declined:
             messageState(
                 symbol: "xmark.circle",
-                message: "Pagamento recusado.",
-                primaryAction: ("Tentar outro método", viewModel.chooseAnotherMethod)
+                message: "Pagamento recusado. Escolha outro cartão ou pague com Pix.",
+                primaryAction: ("Trocar forma de pagamento", viewModel.chooseAnotherMethod),
+                secondaryAction: ("Cancelar pagamento", cancelCheckout)
             )
         case .expired:
             messageState(
@@ -130,6 +157,67 @@ struct PaymentCheckoutView: View {
                 primaryAction: ("Trocar forma de pagamento", viewModel.chooseAnotherMethod)
             )
         }
+    }
+
+    private func savedCardSecurityCodeSheet(_ context: SavedCardTokenizationContext) -> some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Digite o CVV do cartão para confirmar o pagamento.")
+                    .font(PitGoTypography.body)
+                SecurityCodeTextFieldView(textField: $securityCodeField, placeholder: "CVV")
+                    .maxLength(4)
+                    .frame(height: 44)
+                if let cardTokenError {
+                    Text(cardTokenError).foregroundStyle(.red).font(PitGoTypography.caption)
+                }
+                Button("Confirmar pagamento") { tokenizeSavedCard(context) }
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .foregroundStyle(.white)
+                    .background(tokens.accent)
+                    .clipShape(Capsule())
+                    .disabled(securityCodeField == nil || tokenizingCard)
+                if tokenizingCard { ProgressView().frame(maxWidth: .infinity) }
+                Button("Cancelar pagamento", role: .cancel, action: cancelCheckout)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle("Confirmar cartão")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar", action: cancelCheckout)
+                        .disabled(tokenizingCard)
+                }
+            }
+        }
+        .interactiveDismissDisabled(tokenizingCard)
+        .onAppear {
+            securityCodeField = nil
+            cardTokenError = nil
+        }
+    }
+
+    private func tokenizeSavedCard(_ context: SavedCardTokenizationContext) {
+        guard let securityCodeField else { return }
+        tokenizingCard = true
+        cardTokenError = nil
+        Task {
+            do {
+                let token = try await CoreMethods().createToken(cardID: context.cardID, securityCode: securityCodeField)
+                tokenizingCard = false
+                viewModel.confirmSavedCard(token: token.token, context: context)
+            } catch {
+                Self.logger.error("Falha ao gerar token do cartão salvo: \(String(describing: error), privacy: .public)")
+                tokenizingCard = false
+                cardTokenError = "Não foi possível validar o cartão. Confira o CVV e tente novamente."
+            }
+        }
+    }
+
+    private func cancelCheckout() {
+        onCancelled()
+        dismiss()
     }
 
     // MARK: - Seleção de método
@@ -172,6 +260,8 @@ struct PaymentCheckoutView: View {
             }
 
             // FR-019: nenhum atalho de cadastro de cartão aqui — só em Perfil → Formas de pagamento.
+            Button("Cancelar pagamento", role: .cancel, action: cancelCheckout)
+                .frame(maxWidth: .infinity, minHeight: 44)
             Spacer()
         }
     }
@@ -206,6 +296,8 @@ struct PaymentCheckoutView: View {
                 .foregroundStyle(tokens.textSecondary)
                 .multilineTextAlignment(.center)
             Spacer()
+            Button("Cancelar pagamento", role: .cancel, action: cancelCheckout)
+                .frame(maxWidth: .infinity, minHeight: 44)
             Button("Trocar forma de pagamento", action: viewModel.chooseAnotherMethod)
                 .frame(minHeight: 44)
         }
