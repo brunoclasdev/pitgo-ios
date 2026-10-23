@@ -30,7 +30,7 @@ final class ClientMobileDispatchViewModel: ObservableObject {
     @Published private(set) var refundStatus: PaymentStatus?
 
     private let repository: MobileDispatchRepository
-    private let paymentRepository: PaymentRepository
+    private let paymentRepository: PaymentGateway
     private let locationRepository: DeviceLocationRepository
     /// `nil` numa retomada (`PitGoRoute.mobileDispatchSearch`) — `get_my_active_mobile_dispatch()`
     /// não recebe `serviceID`, então a sessão já basta; sem ele, uma busca nova nunca é iniciada
@@ -41,6 +41,7 @@ final class ClientMobileDispatchViewModel: ObservableObject {
     private var lastConfirmedSnapshot: MobileDispatchSnapshot?
     private var isStarted = false
     private var countdownTask: Task<Void, Never>?
+    private var refreshTask: Task<Void, Never>?
     /// `018`: guardado assim que o checkout aprova, para que um "Tentar novamente" após falha de
     /// localização (`.locationRequired`) reuse a mesma cobrança em vez de pedir pagamento de novo.
     private var reservedPaidSearchID: UUID?
@@ -48,7 +49,7 @@ final class ClientMobileDispatchViewModel: ObservableObject {
     init(
         serviceID: UUID?,
         repository: MobileDispatchRepository,
-        paymentRepository: PaymentRepository,
+        paymentRepository: PaymentGateway,
         locationRepository: DeviceLocationRepository
     ) {
         self.serviceID = serviceID
@@ -68,6 +69,7 @@ final class ClientMobileDispatchViewModel: ObservableObject {
                 await repository.subscribeToSearch(searchID: snapshot.searchID) { [weak self] in
                     Task { @MainActor in self?.refresh() }
                 }
+                refresh()
             default:
                 if let serviceID {
                     if let reservedPaidSearchID {
@@ -88,6 +90,9 @@ final class ClientMobileDispatchViewModel: ObservableObject {
     }
 
     func stop() {
+        isStarted = false
+        refreshTask?.cancel()
+        refreshTask = nil
         stopCountdown()
         repository.disconnectAll()
     }
@@ -150,10 +155,39 @@ final class ClientMobileDispatchViewModel: ObservableObject {
         }
     }
 
-    private func refresh() {
+    func refresh() {
         Task { [weak self] in
-            guard let self else { return }
-            apply(await repository.getActiveDispatch())
+            await self?.refreshSnapshot()
+        }
+    }
+
+    private func refreshSnapshot() async {
+        guard pendingAction == nil else { return }
+        let result: MobileDispatchOperationResult
+        if let snapshot = lastConfirmedSnapshot, snapshot.dispatchKind == .guinchoDirect,
+           let appointment = snapshot.appointment {
+            // Consulta o atendimento conhecido, inclusive depois de ele se tornar terminal.
+            result = await repository.getGuinchoSnapshot(appointmentID: appointment.appointmentID)
+        } else {
+            result = await repository.getActiveDispatch()
+        }
+        guard !Task.isCancelled, pendingAction == nil else { return }
+        switch result {
+        case let .snapshot(snapshot): applySnapshot(snapshot)
+        case .failure(.sessionExpired): applyFailure(.sessionExpired)
+        case .failure, .noActiveFlow: break // Falha transitória não apaga o último estado confirmado.
+        }
+    }
+
+    private func startRefreshIfNeeded() {
+        guard refreshTask == nil else { return }
+        refreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 3_000_000_000) }
+                catch { return }
+                guard let self, !Task.isCancelled else { return }
+                await self.refreshSnapshot()
+            }
         }
     }
 
@@ -177,6 +211,37 @@ final class ClientMobileDispatchViewModel: ObservableObject {
     /// quando é apenas sair da tela sem afetar o servidor (ver nota acima).
     var cancelRequiresReason: Bool {
         currentSnapshot?.appointment != nil
+    }
+
+    /// `028` — cliente confirma a conclusão solicitada pelo guincheiro.
+    func confirmCompletion() {
+        guard let snapshot = currentSnapshot, pendingAction == nil, snapshot.allowedActions.contains(.confirmCompletion),
+              let appointment = snapshot.appointment else { return }
+        run(.confirmCompletion, expectedRevision: appointment.revision) { [repository] in
+            await repository.confirmCompletion(appointmentID: appointment.appointmentID, expectedRevision: appointment.revision)
+        }
+    }
+
+    /// `028` — cliente informa problema em vez de confirmar; `reason` não pode chegar vazio (FR-021).
+    func dispute(reason: String) {
+        guard let snapshot = currentSnapshot, pendingAction == nil, snapshot.allowedActions.contains(.dispute),
+              let appointment = snapshot.appointment, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        run(.dispute(reason: reason), expectedRevision: appointment.revision) { [repository] in
+            await repository.disputeCompletion(appointmentID: appointment.appointmentID, expectedRevision: appointment.revision, reason: reason)
+        }
+    }
+
+    /// `028` — guincheiro já aceitou (`AWAITING_PAYMENT`): abre o checkout com o valor do orçamento,
+    /// nunca recalculado aqui (ver `GuinchoPaymentContext`).
+    var guinchoPaymentContext: GuinchoPaymentContext? {
+        guard let snapshot = currentSnapshot, snapshot.dispatchKind == .guinchoDirect,
+              snapshot.status == .awaitingPayment, let appointment = snapshot.appointment else { return nil }
+        return GuinchoPaymentContext(
+            searchID: snapshot.searchID,
+            appointmentID: appointment.appointmentID,
+            quoteVersion: appointment.quoteVersion,
+            amount: appointment.quotedPrice
+        )
     }
 
     func cancel(reason: String) {
@@ -222,6 +287,8 @@ final class ClientMobileDispatchViewModel: ObservableObject {
         lastConfirmedSnapshot = snapshot
 
         if snapshot.status.isTerminal {
+            refreshTask?.cancel()
+            refreshTask = nil
             state = .terminal(snapshot)
             repository.disconnectAll()
             stopCountdown()
@@ -230,6 +297,7 @@ final class ClientMobileDispatchViewModel: ObservableObject {
             }
         } else {
             state = .content(snapshot, pendingAction: pendingAction)
+            startRefreshIfNeeded()
             if snapshot.status == .awaitingProvider, snapshot.appointment?.responseDeadline != nil {
                 startCountdownIfNeeded()
             } else {
@@ -257,6 +325,8 @@ final class ClientMobileDispatchViewModel: ObservableObject {
     private func applyFailure(_ reason: MobileDispatchFailureReason) {
         if reason == .sessionExpired {
             state = .sessionExpired
+            refreshTask?.cancel()
+            refreshTask = nil
             repository.disconnectAll()
             return
         }

@@ -13,26 +13,42 @@ import UIKit
 
 struct ClientMobileDispatchView: View {
     @Environment(\.pitGoTokens) private var tokens
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel: ClientMobileDispatchViewModel
     @State private var showCancellationSheet = false
+    @State private var guinchoPaymentDismissed = false
+    /// `028` — campo de motivo do "Informar problema" (`AWAITING_CLIENT_COMPLETION_CONFIRMATION`).
+    @State private var showDisputeSheet = false
+    @State private var showInspection = false
+    @State private var ratingAppointmentID: UUID?
+    @State private var ratedAppointmentID: UUID?
+    @State private var disputeReason = ""
 
+    let trackingRepository: AppointmentTrackingRepository
     let catalogRepository: ServiceCatalogRepository
-    let paymentRepository: PaymentRepository
+    let paymentRepository: PaymentGateway
     let savedCardRepository: SavedCardRepository
+    let inspectionRepository: GuinchoInspectionRepository
+    let ratingRepository: ServiceRatingRepository
     let onBack: () -> Void
     let onOpenTracking: (UUID) -> Void
     let onSessionExpired: () -> Void
+    let onInspectionVisibility: (UUID?) -> Void
 
     init(
         serviceID: UUID?,
         repository: MobileDispatchRepository,
         locationRepository: DeviceLocationRepository,
+        trackingRepository: AppointmentTrackingRepository,
         catalogRepository: ServiceCatalogRepository,
-        paymentRepository: PaymentRepository,
+        paymentRepository: PaymentGateway,
         savedCardRepository: SavedCardRepository,
+        inspectionRepository: GuinchoInspectionRepository,
+        ratingRepository: ServiceRatingRepository,
         onBack: @escaping () -> Void,
         onOpenTracking: @escaping (UUID) -> Void,
-        onSessionExpired: @escaping () -> Void
+        onSessionExpired: @escaping () -> Void,
+        onInspectionVisibility: @escaping (UUID?) -> Void = { _ in }
     ) {
         _viewModel = StateObject(wrappedValue: ClientMobileDispatchViewModel(
             serviceID: serviceID,
@@ -40,12 +56,16 @@ struct ClientMobileDispatchView: View {
             paymentRepository: paymentRepository,
             locationRepository: locationRepository
         ))
+        self.trackingRepository = trackingRepository
         self.catalogRepository = catalogRepository
         self.paymentRepository = paymentRepository
         self.savedCardRepository = savedCardRepository
+        self.inspectionRepository = inspectionRepository
+        self.ratingRepository = ratingRepository
         self.onBack = onBack
         self.onOpenTracking = onOpenTracking
         self.onSessionExpired = onSessionExpired
+        self.onInspectionVisibility = onInspectionVisibility
     }
 
     var body: some View {
@@ -65,11 +85,17 @@ struct ClientMobileDispatchView: View {
             }
             .task { viewModel.start() }
             .onDisappear { viewModel.stop() }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active { viewModel.refresh() }
+            }
             .onChange(of: isSessionExpired) { expired in
                 if expired { onSessionExpired() }
             }
             .onChange(of: acceptedAppointmentID) { appointmentID in
                 if let appointmentID { onOpenTracking(appointmentID) }
+            }
+            .onChange(of: isPendingCancel) { pending in
+                if !pending { showCancellationSheet = false }
             }
             .sheet(isPresented: $showCancellationSheet) {
                 DispatchCancellationSheet(isSubmitting: isPendingCancel) { reason in
@@ -88,6 +114,54 @@ struct ClientMobileDispatchView: View {
                         onApproved: { requestID in viewModel.beginPaidSearch(searchID: requestID) },
                         onSessionExpired: onSessionExpired
                     )
+                }
+            }
+            // `028`: guincheiro já aceitou — paga o orçamento exato, nunca recalculado aqui.
+            .sheet(item: Binding(
+                get: { guinchoPaymentDismissed ? nil : viewModel.guinchoPaymentContext },
+                set: { if $0 == nil { guinchoPaymentDismissed = true } }
+            )) { context in
+                PaymentCheckoutView(
+                    serviceID: guinchoServiceID ?? context.appointmentID,
+                    dispatchKind: .guinchoDirect,
+                    catalogRepository: catalogRepository,
+                    paymentRepository: paymentRepository,
+                    savedCardRepository: savedCardRepository,
+                    guinchoContext: context,
+                    onApproved: { _ in
+                        guinchoPaymentDismissed = true
+                        viewModel.refresh()
+                    },
+                    onCancelled: {
+                        guinchoPaymentDismissed = true
+                        viewModel.cancel(reason: "Cliente cancelou na tela de pagamento")
+                    },
+                    onSessionExpired: onSessionExpired
+                )
+            }
+            .sheet(isPresented: $showDisputeSheet) {
+                guinchoDisputeSheet
+            }
+            .sheet(isPresented: $showInspection, onDismiss: { onInspectionVisibility(nil) }) {
+                if let appointmentID = currentGuinchoAppointmentID {
+                    NavigationStack {
+                        GuinchoInspectionView(appointmentID: appointmentID, repository: inspectionRepository)
+                    }
+                    .onAppear { onInspectionVisibility(appointmentID) }
+                }
+            }
+            .sheet(isPresented: Binding(
+                get: { ratingAppointmentID != nil },
+                set: { if !$0 { ratingAppointmentID = nil } }
+            )) {
+                if let appointmentID = ratingAppointmentID {
+                    NavigationStack {
+                        ServiceRatingView(appointmentID: appointmentID, repository: ratingRepository) {
+                            ratingAppointmentID = nil
+                        } onSaved: {
+                            ratedAppointmentID = appointmentID
+                        }
+                    }
                 }
             }
     }
@@ -124,11 +198,25 @@ struct ClientMobileDispatchView: View {
         return false
     }
 
+    /// `028`: Guincho nunca navega para `AppointmentTrackingView` — o acompanhamento inteiro
+    /// (retirada→destino, chegada, transporte, conclusão, contestação) fica nesta mesma tela (ver
+    /// `guinchoAcceptedState`), reaproveitando a mesma assinatura/canal Realtime já conectados.
     private var acceptedAppointmentID: UUID? {
         guard case let .content(snapshot, _) = viewModel.state,
+              snapshot.dispatchKind != .guinchoDirect,
               let appointment = snapshot.appointment,
               appointment.status == .accepted || appointment.status == .inProgress else { return nil }
         return appointment.appointmentID
+    }
+
+    private var guinchoServiceID: UUID? {
+        guard case let .content(snapshot, _) = viewModel.state, snapshot.dispatchKind == .guinchoDirect else { return nil }
+        return snapshot.serviceID
+    }
+
+    private var currentGuinchoAppointmentID: UUID? {
+        guard case let .content(snapshot, _) = viewModel.state, snapshot.dispatchKind == .guinchoDirect else { return nil }
+        return snapshot.appointment?.appointmentID
     }
 
     private var isPendingCancel: Bool {
@@ -204,13 +292,26 @@ struct ClientMobileDispatchView: View {
             optionFoundState(snapshot, pendingAction: pendingAction)
         case .awaitingProvider:
             awaitingProviderState(snapshot, pendingAction: pendingAction)
-        case .awaitingClientConfirmation, .awaitingPayment:
-            // `021`/migration `20260913010000` — exclusivos do PitTec (`PITTEC_AUTO_SEQUENTIAL`);
-            // o guincho móvel nunca alcança esses status, mas o enum é compartilhado. Tratado como
-            // "aguardando prestador" por segurança, nunca travando a tela.
+        case .awaitingClientConfirmation:
+            // `021`/migration `20260913010000` — exclusivo do PitTec; o Guincho nunca alcança este
+            // status. Tratado como "aguardando prestador" por segurança, nunca travando a tela.
             awaitingProviderState(snapshot, pendingAction: pendingAction)
-        case .accepted, .inProgress:
-            acceptedState(snapshot, pendingAction: pendingAction)
+        case .awaitingPayment:
+            if snapshot.dispatchKind == .guinchoDirect {
+                // `028`: o prestador já aceitou — o pagamento é aberto pelo `.sheet(item:)` ligado a
+                // `viewModel.guinchoPaymentContext`; esta tela só informa o estado por trás dele.
+                guinchoAwaitingPaymentState(snapshot)
+            } else {
+                awaitingProviderState(snapshot, pendingAction: pendingAction)
+            }
+        case .accepted, .inProgress, .awaitingClientCompletionConfirmation:
+            if snapshot.dispatchKind == .guinchoDirect {
+                guinchoAcceptedState(snapshot, pendingAction: pendingAction)
+            } else {
+                acceptedState(snapshot, pendingAction: pendingAction)
+            }
+        case .disputed:
+            guinchoDisputedState(snapshot)
         case .cancelled, .completed, .exhausted:
             terminalState(snapshot)
         }
@@ -322,6 +423,178 @@ struct ClientMobileDispatchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - `028` — Guincho (pagamento pós-aceite, acompanhamento, conclusão, contestação)
+
+    private func guinchoAwaitingPaymentState(_ snapshot: MobileDispatchSnapshot) -> some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.green)
+            Text("\(snapshot.providerName ?? "O guincheiro") aceitou!")
+                .font(PitGoTypography.sectionTitle)
+                .accessibilityAddTraits(.isHeader)
+            if let appointment = snapshot.appointment {
+                Text(formattedPrice(appointment.quotedPrice, isFree: appointment.isFree))
+                    .font(PitGoTypography.body)
+            }
+            Button("Abrir pagamento") { guinchoPaymentDismissed = false }
+                .frame(minHeight: 44)
+            if snapshot.allowedActions.contains(.cancel) {
+                Button("Cancelar atendimento", role: .destructive) { handleCancelTap(snapshot) }
+                    .frame(minHeight: 44)
+            }
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// `028`: mapa fixo com retirada/destino (sem publicação de localização em tempo real do
+    /// guincheiro neste porte — ver nota em `ProviderIncomingRequestView.startedAppointmentID`) +
+    /// resumo com as ações do estado atual.
+    private func guinchoAcceptedState(_ snapshot: MobileDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
+        let trip = snapshot.guinchoTrip
+        let transporting = snapshot.appointment?.serviceStartedAt != nil
+            || snapshot.appointment?.status == .inProgress
+            || snapshot.appointment?.status == .awaitingClientCompletionConfirmation
+        return VStack(spacing: 0) {
+            if let trip, let appointment = snapshot.appointment {
+                GuinchoClientRouteMap(appointmentID: appointment.appointmentID, trip: trip,
+                    phase: transporting ? .transporting : .approaching, repository: trackingRepository)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                VStack {
+                    Spacer()
+                    ProgressView("Carregando dados do atendimento…")
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(snapshot.providerName ?? "Guincheiro")
+                        .font(PitGoTypography.sectionTitle)
+                        .accessibilityAddTraits(.isHeader)
+                    if let appointment = snapshot.appointment {
+                        Text(formattedPrice(appointment.quotedPrice, isFree: appointment.isFree))
+                            .font(PitGoTypography.body)
+                    }
+                    if let trip {
+                        Text(transporting ? "Destino: \(trip.destinationAddress)" : "Retirada: \(trip.pickupAddress)")
+                            .font(PitGoTypography.caption)
+                            .foregroundStyle(tokens.textSecondary)
+                    }
+
+                    if let inspection = snapshot.inspection, inspection.required {
+                        Text(inspectionStatusText(inspection.state))
+                            .font(PitGoTypography.body)
+                            .accessibilityAddTraits(.updatesFrequently)
+                        if inspection.state != nil {
+                            Button("Ver vistoria do veículo") { showInspection = true }
+                                .frame(minHeight: 48)
+                        }
+                    }
+
+                    switch snapshot.appointment?.status {
+                    case .accepted:
+                        Text(snapshot.appointment?.arrivedAt == nil ? "O guincheiro está a caminho." : "O guincheiro chegou à retirada.")
+                            .font(PitGoTypography.body)
+                            .accessibilityAddTraits(.updatesFrequently)
+                    case .inProgress:
+                        Text("Transporte em andamento.")
+                            .font(PitGoTypography.body)
+                            .accessibilityAddTraits(.updatesFrequently)
+                    case .awaitingClientCompletionConfirmation:
+                        Text("O guincheiro informou que concluiu o atendimento.")
+                            .font(PitGoTypography.body)
+                            .accessibilityAddTraits(.isHeader)
+                        if snapshot.allowedActions.contains(.confirmCompletion) {
+                            Button(action: { viewModel.confirmCompletion() }) {
+                                actionLabel("Deu tudo certo", isLoading: isPending(pendingAction, matching: .confirmCompletion))
+                            }
+                            .foregroundStyle(.white)
+                            .background(tokens.accent)
+                            .clipShape(Capsule())
+                            .frame(minHeight: 56)
+                            .disabled(pendingAction != nil)
+                        }
+                        if snapshot.allowedActions.contains(.dispute) {
+                            Button("Informar problema") { showDisputeSheet = true }
+                                .frame(minHeight: 44)
+                                .disabled(pendingAction != nil)
+                        }
+                    default:
+                        EmptyView()
+                    }
+
+                    if snapshot.allowedActions.contains(.cancel) {
+                        Button("Cancelar atendimento") { handleCancelTap(snapshot) }
+                            .frame(minHeight: 44)
+                            .disabled(pendingAction != nil)
+                    }
+                }
+                .padding(16)
+            }
+            .frame(maxHeight: 280)
+        }
+    }
+
+    private func guinchoDisputedState(_ snapshot: MobileDispatchSnapshot) -> some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "exclamationmark.bubble")
+                .font(.system(size: 40))
+                .foregroundStyle(tokens.textSecondary)
+            Text("Seu caso está em análise pelo suporte.")
+                .font(PitGoTypography.body)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.updatesFrequently)
+            if let dispute = snapshot.guinchoDispute {
+                Text(dispute.reason)
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            Button("Voltar", action: onBack)
+                .frame(minHeight: 44)
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var guinchoDisputeSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("O que não deu certo?")
+                    .font(PitGoTypography.body)
+                TextEditor(text: $disputeReason)
+                    .frame(minHeight: 120)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(tokens.outline, lineWidth: 1))
+                Button("Enviar") {
+                    viewModel.dispute(reason: disputeReason)
+                    showDisputeSheet = false
+                    disputeReason = ""
+                }
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .foregroundStyle(.white)
+                .background(tokens.accent)
+                .clipShape(Capsule())
+                .disabled(disputeReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle("Informar problema")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar") { showDisputeSheet = false }
+                }
+            }
+        }
+    }
+
     private func handleCancelTap(_ snapshot: MobileDispatchSnapshot) {
         if snapshot.appointment != nil {
             showCancellationSheet = true
@@ -342,6 +615,14 @@ struct ClientMobileDispatchView: View {
                 .font(PitGoTypography.body)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.updatesFrequently)
+            if snapshot.status == .completed, let appointmentID = snapshot.appointment?.appointmentID {
+                if snapshot.ratingState?.submitted == true || ratedAppointmentID == appointmentID {
+                    Text("Avaliação registrada · definitiva").font(PitGoTypography.caption)
+                } else if snapshot.ratingState?.canRate == true {
+                    Button("Avaliar atendimento") { ratingAppointmentID = appointmentID }
+                        .frame(minHeight: 44)
+                }
+            }
             if let refundMessage = refundMessage(for: viewModel.refundStatus) {
                 Text(refundMessage)
                     .font(PitGoTypography.caption)
@@ -511,5 +792,15 @@ struct ClientMobileDispatchView: View {
         formatter.numberStyle = .currency
         formatter.locale = Locale(identifier: "pt_BR")
         return formatter.string(from: value as NSDecimalNumber) ?? "R$ \(value)"
+    }
+
+    private func inspectionStatusText(_ state: GuinchoInspectionVersionState?) -> String {
+        switch state {
+        case .draft: "O guincheiro está preparando as fotos do veículo."
+        case .submitted: "A vistoria aguarda sua aprovação."
+        case .correctionRequested: "Uma correção da vistoria foi solicitada."
+        case .approved: "Fotos do veículo aprovadas."
+        case nil: "Vistoria ainda não registrada."
+        }
     }
 }

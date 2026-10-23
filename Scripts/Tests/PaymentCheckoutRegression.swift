@@ -24,7 +24,7 @@ enum CatalogResult { case content([Listing]) }
         if statuses.count > 1 { return statuses.removeFirst() }
         return statuses[0]
     }
-    func createPayment(requestID: UUID, dispatchKind: PaymentDispatchKind, amount: Decimal,
+    func createPayment(requestID: UUID, dispatchKind: PaymentDispatchKind, serviceID: UUID, amount: Decimal,
                        method: PaymentMethodKind, savedCardID: UUID?, cardSecurityCodeToken: String?,
                        appointmentID: UUID?, quoteVersion: Int64?) async -> PaymentCreationOutcome {
         creationCount += 1

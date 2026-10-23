@@ -15,15 +15,27 @@ struct PitTecClientView: View {
     @Environment(\.pitGoTokens) private var tokens
     @StateObject private var viewModel: PitTecClientViewModel
     @State private var showCancellationSheet = false
+    /// `026` US3: resumo compacto por padrão enquanto o PitTec se desloca — cancelar e demais
+    /// detalhes só aparecem quando o cliente expande (FR-012). Recolhido de novo a cada nova busca.
+    @State private var summaryExpanded = false
+    /// `026` FR-014: incrementado para forçar um reenquadramento explícito do mapa (abertura inicial
+    /// do estado `accepted`/botão "Centralizar") — nunca a cada atualização de localização.
+    @State private var mapFitTrigger = 0
+    /// `026`: altura medida do resumo compacto/expandido, usada como padding inferior do mapa para
+    /// os marcadores enquadrados não ficarem escondidos atrás do painel.
+    @State private var summaryHeight: CGFloat = 140
     /// `021`/migration `20260913010000`: o checkout só abre DEPOIS que o cliente confirma o
     /// orçamento (`AWAITING_PAYMENT`), nunca antes de `startDispatch` — a busca em si não exige
     /// mais pagamento prévio (ao contrário do que `018` originalmente implementou).
     @State private var pittecPaymentContext: PitTecPaymentContext?
+    @State private var ratingAppointmentID: UUID?
+    @State private var ratedAppointmentID: UUID?
 
     let serviceID: UUID
     let catalogRepository: ServiceCatalogRepository
-    let paymentRepository: PaymentRepository
+    let paymentRepository: PaymentGateway
     let savedCardRepository: SavedCardRepository
+    let ratingRepository: ServiceRatingRepository
     let onBack: () -> Void
     let onSessionExpired: () -> Void
 
@@ -32,8 +44,9 @@ struct PitTecClientView: View {
         repository: PitTecRepository,
         locationRepository: DeviceLocationRepository,
         catalogRepository: ServiceCatalogRepository,
-        paymentRepository: PaymentRepository,
+        paymentRepository: PaymentGateway,
         savedCardRepository: SavedCardRepository,
+        ratingRepository: ServiceRatingRepository,
         onBack: @escaping () -> Void,
         onSessionExpired: @escaping () -> Void
     ) {
@@ -47,6 +60,7 @@ struct PitTecClientView: View {
         self.catalogRepository = catalogRepository
         self.paymentRepository = paymentRepository
         self.savedCardRepository = savedCardRepository
+        self.ratingRepository = ratingRepository
         self.onBack = onBack
         self.onSessionExpired = onSessionExpired
     }
@@ -76,6 +90,20 @@ struct PitTecClientView: View {
                     viewModel.cancel(reason: reason)
                 }
                 .interactiveDismissDisabled(isPendingCancel)
+            }
+            .sheet(isPresented: Binding(
+                get: { ratingAppointmentID != nil },
+                set: { if !$0 { ratingAppointmentID = nil } }
+            )) {
+                if let appointmentID = ratingAppointmentID {
+                    NavigationStack {
+                        ServiceRatingView(appointmentID: appointmentID, repository: ratingRepository) {
+                            ratingAppointmentID = nil
+                        } onSaved: {
+                            ratedAppointmentID = appointmentID
+                        }
+                    }
+                }
             }
             .sheet(item: $pittecPaymentContext) { context in
                 PaymentCheckoutView(
@@ -253,6 +281,11 @@ struct PitTecClientView: View {
             paymentPendingState(snapshot)
         case .accepted, .inProgress:
             acceptedState(snapshot, pendingAction: pendingAction)
+        case .awaitingClientCompletionConfirmation, .disputed:
+            // `028`: exclusivos do Guincho (`GUINCHO_DIRECT`) — o PitTec nunca alcança esses status,
+            // mas o enum é compartilhado. Tratado como "em andamento" por segurança, nunca travando
+            // a tela (mesmo espírito de `.optionFound`/`.awaitingProvider` acima).
+            acceptedState(snapshot, pendingAction: pendingAction)
         case .cancelled, .completed, .exhausted:
             terminalState(snapshot)
         }
@@ -319,6 +352,9 @@ struct PitTecClientView: View {
                     .foregroundStyle(tokens.textSecondary)
                 Text(formattedAmount(snapshot.appointment?.quotedPrice ?? 0))
                     .font(PitGoTypography.sectionTitle)
+                if let duration = snapshot.appointment?.quote?.durationMinutes {
+                    Text("Duração: \(duration) min").font(PitGoTypography.caption).foregroundStyle(tokens.textSecondary)
+                }
             }
             .padding(16)
             .frame(maxWidth: .infinity)
@@ -394,6 +430,9 @@ struct PitTecClientView: View {
             }
             Text(formattedAmount(snapshot.appointment?.quotedPrice ?? 0))
                 .font(PitGoTypography.sectionTitle)
+            if let duration = snapshot.appointment?.quote?.durationMinutes {
+                Text("Duração: \(duration) min").font(PitGoTypography.caption).foregroundStyle(tokens.textSecondary)
+            }
             if let appointment = snapshot.appointment, snapshot.allowedActions.contains(.openPayment) {
                 Button("Pagar agora") {
                     pittecPaymentContext = PitTecPaymentContext(
@@ -428,8 +467,12 @@ struct PitTecClientView: View {
         return formatter.string(from: amount as NSDecimalNumber) ?? "R$ \(amount)"
     }
 
+    /// `026` US3: o mapa passa a ser o conteúdo principal (nunca mais encolhido por um card fixo) —
+    /// o resumo flutua compacto na borda inferior e só vira card cheio quando expandido. O
+    /// enquadramento inicial roda uma única vez por entrada neste estado (`mapFitTrigger`); o botão
+    /// de recentralizar e nenhum outro evento de localização o repetem sozinhos (FR-014).
     private func acceptedState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottom) {
             if let context = viewModel.routeContext {
                 PitGoMapView(
                     annotations: [
@@ -441,12 +484,17 @@ struct PitTecClientView: View {
                         CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
                         CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude),
                     ],
+                    fitTrigger: mapFitTrigger,
+                    fitBottomPadding: summaryHeight + 16,
                     routeLine: [
                         CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
                         CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude),
                     ]
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay(alignment: .bottomLeading) { MapAttributionView() }
+                .overlay(alignment: .topTrailing) { recenterButton }
+                .onAppear { if mapFitTrigger == 0 { mapFitTrigger = 1 } }
             } else {
                 VStack {
                     Spacer()
@@ -455,22 +503,50 @@ struct PitTecClientView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            statusCard(snapshot, pendingAction: pendingAction)
+            summaryPanel(snapshot, pendingAction: pendingAction)
         }
+        .onPreferenceChange(SummaryHeightPreferenceKey.self) { summaryHeight = $0 }
     }
 
-    private func statusCard(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
+    private var recenterButton: some View {
+        Button(action: { mapFitTrigger += 1 }) {
+            Image(systemName: "viewfinder")
+                .frame(width: 44, height: 44)
+                .background(tokens.surface, in: Circle())
+        }
+        .padding(12)
+        .accessibilityLabel("Centralizar mapa no cliente e no PitTec")
+    }
+
+    /// `026` FR-011/FR-012/FR-013: compacto por padrão (status + distância/chegada); cancelar e
+    /// detalhes adicionais só aparecem expandido. O toque no cabeçalho alterna o estado sem navegar
+    /// para fora do mapa.
+    private func summaryPanel(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(snapshot.provider?.displayName ?? "PitTec", systemImage: "wrench.and.screwdriver.fill")
-                .font(PitGoTypography.sectionTitle)
-                .accessibilityAddTraits(.isHeader)
+            Button(action: { withAnimation { summaryExpanded.toggle() } }) {
+                HStack(spacing: 8) {
+                    Label(snapshot.provider?.displayName ?? "PitTec", systemImage: "wrench.and.screwdriver.fill")
+                        .font(PitGoTypography.sectionTitle)
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer()
+                    Image(systemName: summaryExpanded ? "chevron.down" : "chevron.up")
+                        .foregroundStyle(tokens.textSecondary)
+                }
+                .frame(minHeight: 44)
+            }
+            .accessibilityLabel(summaryExpanded ? "Recolher resumo do atendimento" : "Expandir resumo do atendimento")
+
             Text(snapshot.hasArrived ? "O PitTec chegou." : "O PitTec está a caminho.")
                 .font(PitGoTypography.body)
+            if let summary = snapshot.provider?.ratingSummary {
+                ProviderRatingSummaryLabel(summary: summary)
+            }
             Text(distanceText())
                 .font(PitGoTypography.body)
                 .foregroundStyle(tokens.textSecondary)
                 .accessibilityAddTraits(.updatesFrequently)
-            if snapshot.allowedActions.contains(.cancel) {
+
+            if summaryExpanded, snapshot.allowedActions.contains(.cancel) {
                 Button("Cancelar atendimento") { showCancellationSheet = true }
                     .frame(minHeight: 44)
                     .disabled(pendingAction != nil)
@@ -478,7 +554,15 @@ struct PitTecClientView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(tokens.surface)
+        .background(tokens.surface, in: RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.12), radius: 8, y: -2)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(key: SummaryHeightPreferenceKey.self, value: geometry.size.height)
+            }
+        }
     }
 
     private func distanceText() -> String {
@@ -533,8 +617,16 @@ struct PitTecClientView: View {
                 .accessibilityAddTraits(.updatesFrequently)
         }
         if snapshot.status == .exhausted {
-            Button("Buscar novamente") { viewModel.retry() }
+            Button("Buscar novamente") { retryAndResetSummary() }
                 .frame(minHeight: 44)
+        }
+        if snapshot.status == .completed, let appointmentID = snapshot.appointment?.appointmentID {
+            if snapshot.ratingState?.submitted == true || ratedAppointmentID == appointmentID {
+                Text("Avaliação registrada · definitiva").font(PitGoTypography.caption)
+            } else if snapshot.ratingState?.canRate == true {
+                Button("Avaliar atendimento") { ratingAppointmentID = appointmentID }
+                    .frame(minHeight: 44)
+            }
         }
         Button("Voltar", action: onBack)
             .frame(minHeight: 44)
@@ -573,7 +665,7 @@ struct PitTecClientView: View {
                 .font(PitGoTypography.body)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.updatesFrequently)
-            Button("Tentar novamente") { viewModel.retry() }
+            Button("Tentar novamente") { retryAndResetSummary() }
                 .frame(minHeight: 44)
             Button("Voltar", action: onBack)
                 .frame(minHeight: 44)
@@ -585,5 +677,22 @@ struct PitTecClientView: View {
 
     private func formattedRadius(_ meters: Int) -> String {
         meters >= 1000 ? "\(meters / 1000) km" : "\(meters) m"
+    }
+
+    /// `026`: uma nova busca recolhe o resumo e zera o reenquadramento — o próximo aceite reabre o
+    /// mapa compacto do zero, em vez de herdar o estado expandido/pan da tentativa anterior.
+    private func retryAndResetSummary() {
+        summaryExpanded = false
+        mapFitTrigger = 0
+        viewModel.retry()
+    }
+}
+
+/// `026`: usada por `summaryPanel` para informar `acceptedState` da altura real renderizada do
+/// resumo, que por sua vez alimenta `PitGoMapView.fitBottomPadding`.
+private struct SummaryHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

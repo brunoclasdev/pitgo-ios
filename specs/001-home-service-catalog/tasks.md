@@ -243,3 +243,12 @@ Task T015: Interação dos cards em pitgo/Features/Home/Views/HomeView.swift
 - Não criar testes, mocks, fixtures ou utilitários de teste sem nova solicitação explícita.
 - Não adicionar Swift Package externo, persistência (SwiftData/Core Data), DI, rede ou
   funcionalidade fora do escopo desta feature.
+
+## Atualização do catálogo por categoria (Android `e637ea6`, validado em 2026-10-22)
+
+- [X] T020 Agrupar os serviços ativos por categoria na Home e apresentar uma opção por categoria
+  em `pitgo/Features/Home/Views/HomeView.swift`.
+- [X] T021 Ao tocar numa categoria, apresentar os serviços dela e encaminhar o UUID e o tipo de
+  despacho do serviço selecionado; remover a flag e o bloqueio "Em manutenção".
+- [ ] T022 Executar validação manual do cenário "Category then service" de `quickstart.md` em
+  dispositivo/simulador e confirmar o destino de cada modalidade.

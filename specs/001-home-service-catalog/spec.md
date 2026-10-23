@@ -14,6 +14,16 @@ plataforma; apenas plan/research/data-model/contracts/tasks abaixo são reescrit
 
 ## Clarifications
 
+### Session 2026-10-22
+
+- Q: O catálogo real da Home deve exibir cada serviço ou agrupar serviços pelo nome da categoria?
+  → A: A Home mostra uma entrada por categoria; ao tocar, apresenta os serviços daquela categoria.
+- Q: Tocar numa categoria deve iniciar despacho imediatamente? → A: Não. A pessoa escolhe primeiro
+  um serviço; então o app preserva o UUID e o tipo de despacho desse serviço.
+- Q: Categorias e serviços continuam fixos e offline? → A: Não. Desde `009`, a Home usa o catálogo
+  remoto ativo (`list_home_services()`); o catálogo fixo de cinco categorias descrito originalmente
+  é histórico e não substitui os dados atuais.
+
 ### Session 2026-08-16
 
 - Q: Como o catálogo inicial de serviços deve ser fornecido à homepage? → A: Catálogo local fixo
@@ -70,6 +80,22 @@ que a escolha recebe feedback imediato e inicia a busca de prestadores da catego
 3. **Given** que o usuário utiliza recurso de acessibilidade para navegação, **When** percorre os
    itens, **Then** cada categoria possui nome compreensível e pode ser selecionada.
 
+### User Story 3 - Escolher um serviço dentro da categoria (Priority: P1)
+
+Como cliente, quero ver os serviços de uma categoria depois de selecioná-la, para escolher o
+atendimento específico antes de abrir seu fluxo.
+
+**Acceptance Scenarios**:
+
+1. **Given** o catálogo ativo contém serviços de várias categorias, **When** a Home é apresentada,
+   **Then** cada categoria aparece uma vez, sem repetir um card por serviço.
+2. **Given** a pessoa toca numa categoria, **When** a lista de opções abre, **Then** aparecem todos
+   e somente os serviços ativos daquela categoria.
+3. **Given** a pessoa toca num serviço, **When** o despacho começa, **Then** são usados o UUID e o
+   tipo de despacho do serviço selecionado.
+4. **Given** qualquer serviço ativo no catálogo, **When** ele é apresentado, **Then** continua
+   selecionável sem rótulo ou bloqueio de manutenção na Home.
+
 ### Edge Cases
 
 - Nomes extensos, como "Eletricista veicular", permanecem completos e compreensíveis em telas
@@ -87,8 +113,8 @@ que a escolha recebe feedback imediato e inicia a busca de prestadores da catego
 - **FR-001**: O sistema MUST apresentar a homepage como ponto principal de descoberta dos serviços
   veiculares disponíveis.
 - **FR-002**: A homepage MUST apresentar uma seção de catálogo claramente identificada.
-- **FR-003**: O catálogo inicial MUST conter Borracharia, Eletricista veicular, Bateria, Troca de
-  pneu e Mecânico.
+- **FR-003**: O catálogo da Home MUST apresentar as categorias representadas pelos serviços ativos
+  retornados por `list_home_services()`, sem duplicar uma categoria que tenha vários serviços.
 - **FR-004**: Cada categoria MUST apresentar seu nome completo e uma identificação visual coerente
   com o serviço representado.
 - **FR-005**: A identificação de uma categoria MUST permanecer compreensível sem depender somente
@@ -98,14 +124,14 @@ que a escolha recebe feedback imediato e inicia a busca de prestadores da catego
 - **FR-007**: Usuários MUST conseguir selecionar qualquer categoria disponível por uma área de
   interação adequada e acessível.
 - **FR-008**: O sistema MUST fornecer feedback visual imediato ao selecionar uma categoria.
-- **FR-009**: O sistema MUST iniciar o fluxo de busca de prestadores usando exatamente a categoria
-  selecionada pelo usuário.
+- **FR-009**: Ao selecionar uma categoria, o sistema MUST apresentar seus serviços ativos; somente
+  após a pessoa selecionar um serviço MUST iniciar o fluxo associado ao UUID e ao tipo de despacho
+  desse serviço.
 - **FR-010**: Cada categoria MUST possuir uma descrição acessível que identifique sua finalidade
   para usuários que não dependem da apresentação visual.
-- **FR-011**: O catálogo MUST estar disponível localmente e sua apresentação MUST NOT depender de
-  conexão com a internet ou carregamento remoto.
-- **FR-012**: As cinco categorias iniciais MUST estar disponíveis desde a primeira exibição da
-  homepage.
+- **FR-011**: A Home MUST usar o catálogo ativo fornecido pelo serviço compartilhado e apresentar
+  estados explícitos de carregamento, vazio e falha.
+- **FR-012**: Todas as categorias com serviços ativos recebidos MUST estar disponíveis na Home.
 - **FR-013**: O catálogo MUST continuar utilizável nos modos claro e escuro, com contraste que
   preserve a leitura e a distinção dos itens.
 - **FR-014**: A visualização do catálogo MUST NOT exigir permissão de localização, autenticação ou
@@ -117,9 +143,10 @@ que a escolha recebe feedback imediato e inicia a busca de prestadores da catego
 
 - **Categoria de Serviço**: Representa um tipo de assistência oferecida no marketplace. Possui
   identificador, nome, identificação visual, descrição acessível e posição de exibição.
-- **Catálogo de Serviços**: Coleção local e ordenada das categorias apresentadas na homepage.
-- **Seleção de Categoria**: Representa a categoria escolhida pelo usuário para dar continuidade à
-  jornada de busca de prestadores.
+- **Catálogo de Serviços**: Serviços ativos retornados por `list_home_services()`, agrupados na
+  apresentação por nome de categoria.
+- **Seleção de Categoria**: Filtro temporário usado para apresentar os serviços ativos associados
+  à categoria escolhida.
 
 ## Success Criteria *(mandatory)*
 

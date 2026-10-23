@@ -21,6 +21,10 @@ struct ProfileView: View {
     let clientAddressRepository: ClientAddressRepository
     let locationRepository: DeviceLocationRepository
     let savedCardRepository: SavedCardRepository
+    let guinchoHistoryRepository: GuinchoHistoryRepository
+    let serviceRatingRepository: ServiceRatingRepository
+    let storeRepository: StoreRepository
+    let guinchoInspectionRepository: GuinchoInspectionRepository
     let onOpenGarage: () -> Void
     let onSignOut: () -> Void
     /// Logout intencional a partir da tela de migração — distinto de `onSignOut` só pelo ponto de
@@ -41,11 +45,34 @@ struct ProfileView: View {
                     Text(snapshot.profile.email)
                         .font(PitGoTypography.body)
                         .foregroundStyle(tokens.textSecondary)
+                    // `027` FR-003/SC-007: identificação do ambiente ativo, nunca URL/chave/token.
+                    Text(EnvironmentDiagnostics.label)
+                        .font(PitGoTypography.caption)
+                        .foregroundStyle(tokens.textSecondary)
                 }
 
                 addressEntry
                 vehicleEntry
                 paymentMethodsEntry
+                Button { path.append(.storeCatalog) } label: {
+                    Label("Catálogo de lojas", systemImage: "storefront")
+                        .font(PitGoTypography.categoryTitle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(tokens.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                Button {
+                    guard path.isEmpty else { return }
+                    path.append(.providerGuinchoHistory)
+                } label: {
+                    Label("Histórico de atendimentos", systemImage: "clock.arrow.circlepath")
+                        .font(PitGoTypography.categoryTitle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(tokens.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
                 appearanceSection
 
                 if snapshot.legacyProviderMigrationAvailable {
@@ -85,9 +112,15 @@ struct ProfileView: View {
                     )
                 case .paymentMethods:
                     PaymentMethodsView(repository: savedCardRepository)
-                case .serviceMap, .requestService, .appointmentTracking, .providerAppointmentTracking,
+                case .providerGuinchoHistory:
+                    GuinchoHistoryView(repository: guinchoHistoryRepository, inspectionRepository: guinchoInspectionRepository,
+                                       ratingRepository: serviceRatingRepository,
+                                       onBack: { path.removeLast() })
+                case .storeCatalog:
+                    StoreCatalogView(repository: storeRepository, ownerStoreID: nil)
+                case .serviceMap, .requestService, .appointmentTracking, .guinchoInspectionReview, .providerAppointmentTracking,
                      .mobileDispatchNewSearch, .mobileDispatchSearch, .providerRequest,
-                     .pitTec, .pitTecProviderRequest:
+                     .pitTec, .pitTecProviderRequest, .guincho:
                     EmptyView()
                 }
             }

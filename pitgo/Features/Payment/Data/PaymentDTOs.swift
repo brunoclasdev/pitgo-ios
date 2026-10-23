@@ -16,6 +16,8 @@ import Foundation
 struct CreatePaymentRequestBody: Encodable {
     let request_id: UUID
     let dispatch_kind: String
+    let service_id: UUID
+    let checkout_environment: String
     /// MOBILE_SEQUENTIAL envia o preço esperado. Para PITTEC_AUTO_SEQUENTIAL o backend
     /// calcula o valor congelado do pagamento de teste (R$1–R$2) a partir do atendimento;
     /// enviar o orçamento aqui faria a RPC rejeitar com PRICE_CHANGED.

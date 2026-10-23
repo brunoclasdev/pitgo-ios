@@ -14,6 +14,29 @@ import Foundation
 
 enum UnauthenticatedRoute: Hashable {
     case signUp
-    case providerSignUp
+    case providerKindSelection
+    case providerSignUp(kind: ProviderKind)
     case login
+}
+
+enum ProviderKind: String, CaseIterable, Hashable, Decodable {
+    case pittec = "PITTEC"
+    case guincho = "GUINCHO"
+    case store = "STORE"
+
+    var title: String {
+        switch self {
+        case .pittec: "PitTec"
+        case .guincho: "Guincho"
+        case .store: "Loja"
+        }
+    }
+
+    var locationMode: ProviderLocationMode {
+        switch self {
+        case .pittec: .pittec
+        case .guincho: .mobile
+        case .store: .fixed
+        }
+    }
 }

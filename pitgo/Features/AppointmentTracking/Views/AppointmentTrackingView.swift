@@ -12,11 +12,13 @@ import SwiftUI
 struct AppointmentTrackingView: View {
     @Environment(\.pitGoTokens) private var tokens
     @StateObject private var viewModel: AppointmentTrackingViewModel
+    let ratingRepository: ServiceRatingRepository
 
     let appointmentID: UUID
 
-    init(appointmentID: UUID, repository: AppointmentTrackingRepository) {
+    init(appointmentID: UUID, repository: AppointmentTrackingRepository, ratingRepository: ServiceRatingRepository) {
         self.appointmentID = appointmentID
+        self.ratingRepository = ratingRepository
         _viewModel = StateObject(wrappedValue: AppointmentTrackingViewModel(repository: repository))
     }
 
@@ -24,6 +26,7 @@ struct AppointmentTrackingView: View {
         VStack(spacing: 0) {
             mapSection
             statusBar
+            ServiceRatingOffer(appointmentID: appointmentID, repository: ratingRepository)
         }
         .background(tokens.background)
         .navigationTitle("Acompanhar atendimento")

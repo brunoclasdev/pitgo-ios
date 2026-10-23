@@ -28,8 +28,16 @@ struct PitGoRootView: View {
     private let mobileDispatchRepository: MobileDispatchRepository
     private let pitTecRepository: PitTecRepository
     private let clientAddressRepository: ClientAddressRepository
-    private let paymentRepository: PaymentRepository
+    private let paymentRepository: PaymentGateway
     private let savedCardRepository: SavedCardRepository
+    private let guinchoRepository: GuinchoRepository
+    private let guinchoHistoryRepository: GuinchoHistoryRepository
+    private let guinchoInspectionRepository: GuinchoInspectionRepository
+    private let guinchoRouteRepository: GuinchoRouteRepository
+    private let serviceRatingRepository: ServiceRatingRepository
+    private let storeRepository: StoreRepository
+    @StateObject private var inspectionAlertViewModel: GuinchoInspectionAlertViewModel
+    private let guinchoAddressRepository: GuinchoAddressRepository
     private let locationRepository: DeviceLocationRepository
     private let trackingStateRepository: ProviderTrackingStateRepository
     private let onboardingStore = VehicleOnboardingStore()
@@ -54,8 +62,21 @@ struct PitGoRootView: View {
         mobileDispatchRepository = MobileDispatchRepository(client: client)
         pitTecRepository = PitTecRepository(client: client)
         clientAddressRepository = ClientAddressRepository(client: client)
-        paymentRepository = PaymentRepository(client: client)
+        // `027`: Dev nunca cria uma transação real — troca a fronteira inteira por um gateway em
+        // memória, sem o resto do app saber a diferença (ver PaymentGateway/SimulatedPaymentGateway).
+        paymentRepository = EnvironmentConfig.current.simulated
+            ? SimulatedPaymentGateway(client: client)
+            : PaymentRepository(client: client)
         savedCardRepository = SavedCardRepository(client: client)
+        guinchoRepository = GuinchoRepository(client: client)
+        guinchoHistoryRepository = GuinchoHistoryRepository(client: client)
+        guinchoInspectionRepository = GuinchoInspectionRepository(client: client)
+        guinchoRouteRepository = GuinchoRouteRepository(client: client)
+        serviceRatingRepository = ServiceRatingRepository(client: client)
+        storeRepository = StoreRepository(client: client)
+        let alertRepository = GuinchoInspectionAlertRepository(client: client)
+        _inspectionAlertViewModel = StateObject(wrappedValue: GuinchoInspectionAlertViewModel(repository: alertRepository))
+        guinchoAddressRepository = GuinchoAddressRepository(client: client)
         dispatchResumeCoordinator = DispatchResumeCoordinator(repository: mobileDispatchRepository)
 
         let sharedLocationRepository = DeviceLocationRepository()
@@ -99,6 +120,13 @@ struct PitGoRootView: View {
                         clientAddressRepository: clientAddressRepository,
                         paymentRepository: paymentRepository,
                         savedCardRepository: savedCardRepository,
+                        guinchoRepository: guinchoRepository,
+                        guinchoAddressRepository: guinchoAddressRepository,
+                        guinchoInspectionRepository: guinchoInspectionRepository,
+                        guinchoHistoryRepository: guinchoHistoryRepository,
+                        serviceRatingRepository: serviceRatingRepository,
+                        storeRepository: storeRepository,
+                        inspectionAlertViewModel: inspectionAlertViewModel,
                         dispatchResumeCoordinator: dispatchResumeCoordinator,
                         locationRepository: locationRepository,
                         migrationRepository: migrationRepository,
@@ -121,7 +149,11 @@ struct PitGoRootView: View {
                             verificationRepository: addressVerificationRepository,
                             accountID: identity.userID,
                             authEmail: identity.authEmail,
-                            onFinished: { Task { await sessionStore.bootstrap() } },
+                            providerKind: ProviderKind(rawValue: UserDefaults.standard.string(forKey: "pitgo.pendingProviderKind.\(identity.userID.uuidString)") ?? "") ?? .guincho,
+                            onFinished: {
+                                UserDefaults.standard.removeObject(forKey: "pitgo.pendingProviderKind.\(identity.userID.uuidString)")
+                                Task { await sessionStore.bootstrap() }
+                            },
                             onSessionExpired: { Task { await sessionStore.signOut() } }
                         )
                     }
@@ -146,6 +178,11 @@ struct PitGoRootView: View {
                         trackingStateRepository: trackingStateRepository,
                         dispatchRepository: mobileDispatchRepository,
                         pitTecRepository: pitTecRepository,
+                        guinchoHistoryRepository: guinchoHistoryRepository,
+                        serviceRatingRepository: serviceRatingRepository,
+                        guinchoInspectionRepository: guinchoInspectionRepository,
+                        guinchoRouteRepository: guinchoRouteRepository,
+                        storeRepository: storeRepository,
                         locationRepository: locationRepository,
                         onSignOut: { Task { await sessionStore.signOut() } }
                     )
@@ -204,7 +241,7 @@ private struct UnauthenticatedFlow: View {
                 },
                 onRegisterCompany: {
                     guard path.isEmpty else { return }
-                    path.append(.providerSignUp)
+                    path.append(.providerKindSelection)
                 }
             )
             .navigationDestination(for: UnauthenticatedRoute.self) { route in
@@ -216,10 +253,15 @@ private struct UnauthenticatedFlow: View {
                             Task { await sessionStore.bootstrap() }
                         }
                     )
-                case .providerSignUp:
+                case .providerKindSelection:
+                    ProviderKindSelectionView { kind in
+                        path.append(.providerSignUp(kind: kind))
+                    }
+                case let .providerSignUp(kind):
                     ProviderSignUpView(
                         repository: ProviderSignUpRepository(client: client),
-                        onAuthenticated: { _ in
+                        onAuthenticated: { userID in
+                            UserDefaults.standard.set(kind.rawValue, forKey: "pitgo.pendingProviderKind.\(userID.uuidString)")
                             Task { await sessionStore.bootstrap() }
                         }
                     )
@@ -278,8 +320,15 @@ private struct ClientMainTabView: View {
     let mobileDispatchRepository: MobileDispatchRepository
     let pitTecRepository: PitTecRepository
     let clientAddressRepository: ClientAddressRepository
-    let paymentRepository: PaymentRepository
+    let paymentRepository: PaymentGateway
     let savedCardRepository: SavedCardRepository
+    let guinchoRepository: GuinchoRepository
+    let guinchoAddressRepository: GuinchoAddressRepository
+    let guinchoInspectionRepository: GuinchoInspectionRepository
+    let guinchoHistoryRepository: GuinchoHistoryRepository
+    let serviceRatingRepository: ServiceRatingRepository
+    let storeRepository: StoreRepository
+    @ObservedObject var inspectionAlertViewModel: GuinchoInspectionAlertViewModel
     let dispatchResumeCoordinator: DispatchResumeCoordinator
     let locationRepository: DeviceLocationRepository
     let migrationRepository: ProviderMigrationRepository
@@ -289,6 +338,8 @@ private struct ClientMainTabView: View {
 
     @State private var selectedTab: BottomItemID = .home
     @State private var homePath: [PitGoRoute] = []
+    @State private var openInspectionAppointmentID: UUID?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         PitGoBottomTabs(selection: $selectedTab) { item in
@@ -331,20 +382,39 @@ private struct ClientMainTabView: View {
                                 catalogRepository: catalogRepository,
                                 onBack: { homePath.removeLast() }
                             )
+                        case .guincho:
+                            GuinchoMapView(
+                                userID: snapshot.userID,
+                                repository: guinchoRepository,
+                                vehicleRepository: vehicleRepository,
+                                locationRepository: locationRepository,
+                                addressRepository: guinchoAddressRepository,
+                                onBack: { homePath.removeLast() },
+                                onGarage: { selectedTab = .garage },
+                                onContract: { snapshot in
+                                    guard homePath.count == 1 else { return }
+                                    homePath.append(.mobileDispatchSearch(searchID: snapshot.searchID))
+                                },
+                                onSessionExpired: onSignOut
+                            )
                         case let .mobileDispatchNewSearch(serviceID):
                             ClientMobileDispatchView(
                                 serviceID: serviceID,
                                 repository: mobileDispatchRepository,
                                 locationRepository: locationRepository,
+                                trackingRepository: appointmentTrackingRepositoryFactory(),
                                 catalogRepository: catalogRepository,
                                 paymentRepository: paymentRepository,
                                 savedCardRepository: savedCardRepository,
+                                inspectionRepository: guinchoInspectionRepository,
+                                ratingRepository: serviceRatingRepository,
                                 onBack: { homePath.removeLast() },
                                 onOpenTracking: { appointmentID in
                                     guard homePath.count == 1 else { return }
                                     homePath.append(.appointmentTracking(appointmentID: appointmentID))
                                 },
-                                onSessionExpired: onSignOut
+                                onSessionExpired: onSignOut,
+                                onInspectionVisibility: { openInspectionAppointmentID = $0 }
                             )
                         case .mobileDispatchSearch:
                             // Retomada: `get_my_active_mobile_dispatch()` não recebe `serviceID` —
@@ -355,15 +425,19 @@ private struct ClientMainTabView: View {
                                 serviceID: nil,
                                 repository: mobileDispatchRepository,
                                 locationRepository: locationRepository,
+                                trackingRepository: appointmentTrackingRepositoryFactory(),
                                 catalogRepository: catalogRepository,
                                 paymentRepository: paymentRepository,
                                 savedCardRepository: savedCardRepository,
+                                inspectionRepository: guinchoInspectionRepository,
+                                ratingRepository: serviceRatingRepository,
                                 onBack: { homePath.removeLast() },
                                 onOpenTracking: { appointmentID in
                                     guard homePath.count == 1 else { return }
                                     homePath.append(.appointmentTracking(appointmentID: appointmentID))
                                 },
-                                onSessionExpired: onSignOut
+                                onSessionExpired: onSignOut,
+                                onInspectionVisibility: { openInspectionAppointmentID = $0 }
                             )
                         case let .pitTec(serviceID):
                             PitTecClientView(
@@ -373,14 +447,18 @@ private struct ClientMainTabView: View {
                                 catalogRepository: catalogRepository,
                                 paymentRepository: paymentRepository,
                                 savedCardRepository: savedCardRepository,
+                                ratingRepository: serviceRatingRepository,
                                 onBack: { homePath.removeLast() },
                                 onSessionExpired: onSignOut
                             )
                         case let .appointmentTracking(appointmentID):
                             AppointmentTrackingView(
                                 appointmentID: appointmentID,
-                                repository: appointmentTrackingRepositoryFactory()
+                                repository: appointmentTrackingRepositoryFactory(),
+                                ratingRepository: serviceRatingRepository
                             )
+                        case let .guinchoInspectionReview(appointmentID):
+                            GuinchoInspectionView(appointmentID: appointmentID, repository: guinchoInspectionRepository)
                         case .clientAddress:
                             ClientAddressView(
                                 repository: clientAddressRepository,
@@ -389,7 +467,7 @@ private struct ClientMainTabView: View {
                                 onSessionExpired: onSignOut
                             )
                         case .providerAppointmentTracking, .providerMigrationStart, .providerRequest,
-                             .pitTecProviderRequest, .paymentMethods:
+                             .pitTecProviderRequest, .providerGuinchoHistory, .paymentMethods, .storeCatalog:
                             EmptyView()
                         }
                     }
@@ -427,12 +505,50 @@ private struct ClientMainTabView: View {
                     clientAddressRepository: clientAddressRepository,
                     locationRepository: locationRepository,
                     savedCardRepository: savedCardRepository,
+                    guinchoHistoryRepository: guinchoHistoryRepository,
+                    serviceRatingRepository: serviceRatingRepository,
+                    storeRepository: storeRepository,
+                    guinchoInspectionRepository: guinchoInspectionRepository,
                     onOpenGarage: { selectedTab = .garage },
                     onSignOut: onSignOut,
                     onSwitchAccountForMigration: onSignOut
                 )
             }
         }
+        .task(id: snapshot.userID) {
+            inspectionAlertViewModel.start(accountID: snapshot.userID)
+            inspectionAlertViewModel.setForeground(scenePhase == .active)
+        }
+        .onChange(of: scenePhase) { phase in
+            inspectionAlertViewModel.setForeground(phase == .active)
+        }
+        .alert("Vistoria para aprovação", isPresented: Binding(
+            get: { shouldShowInspectionAlert },
+            set: { if !$0, shouldShowInspectionAlert, let alert = inspectionAlertViewModel.presentedAlert { inspectionAlertViewModel.dismiss(alert) } }
+        ), presenting: shouldShowInspectionAlert ? inspectionAlertViewModel.presentedAlert : nil) { alert in
+            Button(inspectionAlertViewModel.isOpening ? "Verificando…" : "Revisar vistoria") {
+                Task {
+                    guard let result = await inspectionAlertViewModel.review(alert) else { return }
+                    selectedTab = .home
+                    switch result {
+                    case let .pending(current): homePath = [.guinchoInspectionReview(appointmentID: current.appointmentID)]
+                    case let .resolved(appointmentID): homePath = [.appointmentTracking(appointmentID: appointmentID)]
+                    }
+                }
+            }
+            .disabled(inspectionAlertViewModel.isOpening)
+            Button("Agora não", role: .cancel) { inspectionAlertViewModel.dismiss(alert) }
+        } message: { _ in
+            Text(inspectionAlertViewModel.openFailure ?? "Há uma vistoria aguardando seu aceite.")
+        }
+        .onDisappear { inspectionAlertViewModel.stop() }
+    }
+
+    private var shouldShowInspectionAlert: Bool {
+        guard let alert = inspectionAlertViewModel.presentedAlert else { return false }
+        if openInspectionAppointmentID == alert.appointmentID { return false }
+        if case let .guinchoInspectionReview(appointmentID)? = homePath.last, appointmentID == alert.appointmentID { return false }
+        return true
     }
 
     private func handleServiceTap(_ serviceID: UUID, dispatchKind: ServiceDispatchKind) {
@@ -441,7 +557,9 @@ private struct ClientMainTabView: View {
         case .browse:
             homePath.append(.serviceMap(serviceID: serviceID))
         case .mobileSequential:
-            homePath.append(.mobileDispatchNewSearch(serviceID: serviceID))
+            // `028`: o card de Guincho da Home passa a abrir a escolha no mapa, não mais a busca
+            // automática antiga (`.mobileDispatchNewSearch` continua existindo só para retomada).
+            homePath.append(.guincho(serviceID: serviceID))
         case .pittecAutoSequential:
             homePath.append(.pitTec(serviceID: serviceID))
         }

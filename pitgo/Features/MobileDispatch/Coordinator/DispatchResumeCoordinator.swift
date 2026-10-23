@@ -30,7 +30,11 @@ final class DispatchResumeCoordinator {
     func resolveForClient() async -> DispatchResumeDestination {
         switch await repository.getActiveDispatch() {
         case let .snapshot(snapshot):
-            if let appointment = snapshot.appointment, appointment.status == .accepted || appointment.status == .inProgress {
+            // `028`: Guincho nunca usa a tela genérica de tracking — o acompanhamento inteiro
+            // (chegada, transporte, conclusão, contestação) vive em `ClientMobileDispatchView`
+            // (ver `guinchoAcceptedState`), então sempre retoma por `.clientSearch`.
+            if snapshot.dispatchKind != .guinchoDirect,
+               let appointment = snapshot.appointment, appointment.status == .accepted || appointment.status == .inProgress {
                 return .clientTracking(appointmentID: appointment.appointmentID)
             }
             return snapshot.status.isTerminal ? .none : .clientSearch(searchID: snapshot.searchID)
@@ -43,6 +47,17 @@ final class DispatchResumeCoordinator {
         switch await repository.getActiveDispatch() {
         case let .snapshot(snapshot):
             guard let appointment = snapshot.appointment else { return .none }
+            // `028`: Guincho fica inteiramente em `ProviderIncomingRequestView` (ver
+            // `guinchoReservedState`) — nunca em `ProviderTrackingView` (publicação de localização
+            // do guincho móvel clássico, fora do escopo deste porte).
+            if snapshot.dispatchKind == .guinchoDirect {
+                switch appointment.status {
+                case .pending, .accepted, .inProgress, .awaitingClientCompletionConfirmation, .disputed:
+                    return .providerIncoming(appointmentID: appointment.appointmentID)
+                default:
+                    return .none
+                }
+            }
             switch appointment.status {
             case .pending: return .providerIncoming(appointmentID: appointment.appointmentID)
             case .accepted, .inProgress: return .providerTracking(appointmentID: appointment.appointmentID)

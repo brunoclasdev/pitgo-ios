@@ -31,7 +31,16 @@ final class SessionStore: ObservableObject {
     /// remoto.
     func start() {
         guard signOutWatcherTask == nil else { return }
-        Task { await bootstrap() }
+        Task { [weak self] in
+            guard let self else { return }
+            // `027` FR-009/FR-010: detecta troca de ambiente (Dev/Homol/Prod substituem o mesmo
+            // bundle identifier neste dispositivo) ANTES de validar a sessão local — nunca reaproveita
+            // sessão/estado de um backend diferente do atual.
+            await EnvironmentStateRepository().validate { [weak self] in
+                await self?.clearIncompatibleEnvironmentState()
+            }
+            await self.bootstrap()
+        }
         signOutWatcherTask = Task { [weak self] in
             guard let self else { return }
             for await authChangeEvent in client.auth.authStateChanges {
@@ -98,6 +107,13 @@ final class SessionStore: ObservableObject {
         else { return }
         snapshot.primaryVehicle = vehicle
         state = .authenticatedClient(snapshot)
+    }
+
+    /// `027`: executado só quando `EnvironmentStateRepository.validate` detecta uma troca de
+    /// ambiente — nunca em uso normal. Descarta a sessão local do Supabase (de outro projeto/backend,
+    /// onde o JWT não tem nenhum significado) antes do primeiro `bootstrap()` do ambiente novo.
+    private func clearIncompatibleEnvironmentState() async {
+        try? await client.auth.signOut(scope: .local)
     }
 
     func signOut() async {

@@ -60,7 +60,8 @@ extension Provider {
         Provider(
             id: id, accountID: accountID, name: name, description: description,
             email: email, phone: phone, cnpj: cnpj,
-            locationMode: update.locationMode, active: active, available: update.available
+            locationMode: update.locationMode, providerKind: providerKind,
+            active: active, available: update.available
         )
     }
 }

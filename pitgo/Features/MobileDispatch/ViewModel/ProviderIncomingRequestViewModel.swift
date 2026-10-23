@@ -10,6 +10,7 @@
 //
 
 import Combine
+import CoreLocation
 import Foundation
 
 @MainActor
@@ -18,6 +19,8 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
     /// Referência local só para recalcular o texto do countdown a cada segundo — nunca decide uma
     /// transição de estado sozinha.
     @Published private(set) var localNow: Date = .init()
+    /// Sinaliza somente o encerramento de um fluxo Guincho que esta instância chegou a apresentar.
+    @Published private(set) var didFinishGuincho = false
 
     private let repository: MobileDispatchRepository
     private let providerID: UUID
@@ -63,6 +66,31 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
         }
     }
 
+    func refreshNow() { refresh() }
+
+    /// Revalida autorização, estado e destino no snapshot mais recente antes de abrir um navegador.
+    func externalNavigationDestination() async -> CLLocationCoordinate2D? {
+        guard pendingAction == nil,
+              case let .reserved(current, _) = state,
+              current.dispatchKind == .guinchoDirect,
+              let currentID = current.appointment?.appointmentID else { return nil }
+
+        guard case let .snapshot(latest) = await repository.getActiveDispatch(),
+              latest.revision >= acceptedRevision else { return nil }
+        apply(.snapshot(latest))
+        guard case let .reserved(confirmed, nil) = state,
+              confirmed.revision >= latest.revision,
+              confirmed.dispatchKind == .guinchoDirect,
+              confirmed.trackingAuthorized,
+              confirmed.appointment?.appointmentID == currentID,
+              let appointment = confirmed.appointment,
+              appointment.status == .accepted || appointment.status == .inProgress,
+              let trip = confirmed.guinchoTrip else { return nil }
+
+        let destination = appointment.status == .accepted ? trip.pickup : trip.destination
+        return ExternalNavigator.isValid(destination) ? destination : nil
+    }
+
     // MARK: - Ações
 
     func accept() {
@@ -92,6 +120,22 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
         guard let (_, appointment) = currentReserved, pendingAction == nil else { return }
         run(.complete, expectedRevision: appointment.revision) { [repository] in
             await repository.completeAppointment(appointmentID: appointment.appointmentID, expectedRevision: appointment.revision)
+        }
+    }
+
+    /// `028` — guincheiro registra a chegada à retirada (`ACCEPTED`, `arrivedAt == nil`).
+    func arrive() {
+        guard let (_, appointment) = currentReserved, pendingAction == nil else { return }
+        run(.arrive, expectedRevision: appointment.revision) { [repository] in
+            await repository.arriveGuincho(appointmentID: appointment.appointmentID, expectedRevision: appointment.revision)
+        }
+    }
+
+    /// `028` — guincheiro inicia o transporte após a chegada (`ACCEPTED`, `arrivedAt != nil`).
+    func startTransport() {
+        guard let (_, appointment) = currentReserved, pendingAction == nil else { return }
+        run(.start, expectedRevision: appointment.revision) { [repository] in
+            await repository.startGuinchoTransport(appointmentID: appointment.appointmentID, expectedRevision: appointment.revision)
         }
     }
 
@@ -128,6 +172,9 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
         case let .snapshot(snapshot):
             applySnapshot(snapshot)
         case .noActiveFlow:
+            if lastConfirmedSnapshot?.dispatchKind == .guinchoDirect {
+                didFinishGuincho = true
+            }
             state = .noIncoming
             countdownTask?.cancel()
             countdownTask = nil
@@ -157,11 +204,16 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
         case .pending:
             state = .incoming(snapshot, pendingAction: pendingAction)
             startCountdownIfNeeded()
-        case .accepted, .inProgress:
+        case .accepted, .inProgress, .awaitingClientCompletionConfirmation, .disputed:
+            // `028`: aguardando confirmação do cliente ou em contestação continuam "reservados" do
+            // ponto de vista do prestador — cada estado decide suas próprias ações na View.
             state = .reserved(snapshot, pendingAction: pendingAction)
             countdownTask?.cancel()
             countdownTask = nil
         default:
+            if snapshot.dispatchKind == .guinchoDirect {
+                didFinishGuincho = true
+            }
             state = .noIncoming
             countdownTask?.cancel()
             countdownTask = nil

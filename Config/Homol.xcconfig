@@ -1,0 +1,15 @@
+//
+//  Homol.xcconfig
+//  pitgo
+//
+//  `027`: Homol espelha Prod — mesmo backend Supabase, mesma integração Mercado Pago (decisão de
+//  30/09/2026, ver specs/027-android-environment-flavors/spec.md no Android, clarification). Em vez
+//  de duplicar um segundo arquivo de secrets que precisaria ser mantido idêntico ao de Prod à mão,
+//  este arquivo inclui Prod.secrets.xcconfig diretamente — a igualdade é garantida pela própria
+//  estrutura do arquivo, não por uma verificação que poderia divergir. Só `ENVIRONMENT_ID` (abaixo)
+//  e o nome de exibição do app (ver project.pbxproj) distinguem Homol de Prod.
+//
+ENVIRONMENT_ID = HOMOL
+
+#include "Shared.xcconfig"
+#include? "Prod.secrets.xcconfig"

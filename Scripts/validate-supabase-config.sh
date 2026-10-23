@@ -130,6 +130,57 @@ esac
 
 }
 
+# --- supabaseProjectRef (027) ------------------------------------------------------------------
+#
+# Mesma checagem do build.gradle.kts do Android (`loadEnvironment`): a URL deve ser derivável
+# exatamente do project ref — evita uma URL copiada de outro ambiente por engano.
+
+validate_project_ref_config() {
+
+ref_trimmed=$(trim "${supabaseProjectRef:-}")
+
+if [ -z "$ref_trimmed" ]; then
+    fail "supabaseProjectRef está ausente ou contém apenas espaços."
+fi
+
+case "$ref_trimmed" in
+    *[!a-z0-9]*) fail "supabaseProjectRef deve conter apenas letras minúsculas e dígitos." ;;
+esac
+
+if [ "${#ref_trimmed}" -ne 20 ]; then
+    fail "supabaseProjectRef deve ter 20 caracteres."
+fi
+
+expected_url="https://${ref_trimmed}.supabase.co"
+if [ "${url_trimmed:-}" != "$expected_url" ]; then
+    fail "supabaseUrl não corresponde a supabaseProjectRef (esperado $expected_url)."
+fi
+
+}
+
+# --- Isolamento Dev x Prod (027) -----------------------------------------------------------------
+#
+# Só roda quando ENVIRONMENT_ID=DEV: lê supabaseProjectRef diretamente de Prod.secrets.xcconfig no
+# disco (não passa pelas Build Settings do alvo atual) e falha se Dev apontar para o mesmo projeto
+# de Prod — mesmo espírito de `validateEnvironmentIsolation` no build.gradle.kts do Android.
+# Arquivo ausente (clone novo sem Prod.secrets.xcconfig) não é um erro aqui — SRCROOT pode não ter
+# sido provisionado ainda; cada ambiente valida sua própria ausência de config via as funções acima.
+
+validate_dev_prod_isolation() {
+
+[ "${ENVIRONMENT_ID:-}" = "DEV" ] || return 0
+
+prod_secrets_file="${SRCROOT:-.}/Config/Prod.secrets.xcconfig"
+[ -f "$prod_secrets_file" ] || return 0
+
+prod_ref=$(grep -E '^[[:space:]]*supabaseProjectRef[[:space:]]*=' "$prod_secrets_file" | tail -n 1 | sed -E 's/^[^=]*=[[:space:]]*//' | tr -d '[:space:]')
+
+if [ -n "$prod_ref" ] && [ "$prod_ref" = "${ref_trimmed:-}" ]; then
+    fail "Dev (environmentId=DEV) não pode usar o mesmo supabaseProjectRef de Prod ($prod_ref)."
+fi
+
+}
+
 validate_map_style_config() {
 
 # --- mapStyleUrl -------------------------------------------------------------------------------
@@ -217,4 +268,6 @@ fi
 }
 
 validate_supabase_config
+validate_project_ref_config
+validate_dev_prod_isolation
 validate_map_style_config

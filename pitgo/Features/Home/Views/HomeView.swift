@@ -4,8 +4,8 @@
 //
 //  Conteúdo da aba "Início": snapshot autorizado da conta + catálogo real em duas colunas fixas. A
 //  `TabView` que hospeda esta View é compartilhada (`Core/UI/PitGoBottomTabs`, ver `002`/`003`).
-//  Desde `009`, cada card abre o mapa de descoberta pelo UUID real do serviço (`PitGoRoute.
-//  serviceMap`), substituindo o `RequestServiceView` demo de `003`.
+//  Desde `009`, o catálogo remoto é agrupado por categoria na Home; a escolha de um serviço
+//  continua pelo UUID real até seu fluxo de despacho correspondente.
 //
 
 import SwiftUI
@@ -22,6 +22,7 @@ struct HomeView: View {
     let onOpenAddress: () -> Void
 
     @State private var appointmentIDInput = ""
+    @State private var selectedCategory: HomeServiceCategory?
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -53,6 +54,17 @@ struct HomeView: View {
         content
             .background(tokens.background)
             .task { await viewModel.load() }
+            .sheet(item: $selectedCategory) { category in
+                CategoryServicesSheet(category: category) { service in
+                    selectedCategory = nil
+                    Task { @MainActor in
+                        await Task.yield()
+                        onServiceTap(service.serviceID, service.dispatchKind)
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
     }
 
     @ViewBuilder
@@ -157,9 +169,9 @@ struct HomeView: View {
             }
             .gridCellColumns(2)
         case let .content(listings):
-            ForEach(listings) { listing in
-                ServiceCard(listing: listing) {
-                    onServiceTap(listing.serviceID, listing.dispatchKind)
+            ForEach(HomeServiceCategory.group(listings)) { category in
+                ServiceCategoryCard(category: category) {
+                    selectedCategory = category
                 }
             }
         }
@@ -349,52 +361,44 @@ struct HomeView: View {
     }
 }
 
-private struct ServiceCard: View {
-    @Environment(\.pitGoTokens) private var tokens
-    let listing: HomeServiceListing
-    let action: () -> Void
+private struct HomeServiceCategory: Identifiable, Hashable {
+    let name: String
+    let services: [HomeServiceListing]
 
-    /// Restrição temporária a pedido do cliente (2026-09-14): só PitTec fica navegável na Home — as
-    /// demais modalidades continuam vindo do catálogo real (nenhum dado é ocultado), só ficam
-    /// visualmente desabilitadas com "Em manutenção" em vez de abrir o despacho.
-    private var isUnderMaintenance: Bool { listing.dispatchKind != .pittecAutoSequential }
+    var id: String { name }
+    static func group(_ listings: [HomeServiceListing]) -> [HomeServiceCategory] {
+        Dictionary(grouping: listings, by: \.categoryName)
+            .map { entry in
+                HomeServiceCategory(
+                    name: entry.key,
+                    services: entry.value.sorted { $0.serviceName.localizedStandardCompare($1.serviceName) == .orderedAscending }
+                )
+            }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+}
+
+private struct ServiceCategoryCard: View {
+    @Environment(\.pitGoTokens) private var tokens
+    let category: HomeServiceCategory
+    let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top) {
-                    Text(categoryEmoji)
-                        .font(.system(size: 22))
-                        .frame(width: 44, height: 44)
-                        .background(tokens.purpleContainer)
-                        .clipShape(Circle())
-                        .accessibilityHidden(true)
-                    Spacer(minLength: 4)
-                    if isUnderMaintenance {
-                        Text("Em manutenção")
-                            .font(PitGoTypography.caption)
-                            .foregroundStyle(.orange)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.orange.opacity(0.15))
-                            .clipShape(Capsule())
-                    }
-                }
-                Text(listing.serviceName)
+                Text(categoryEmoji)
+                    .font(.system(size: 22))
+                    .frame(width: 44, height: 44)
+                    .background(tokens.purpleContainer)
+                    .clipShape(Circle())
+                    .accessibilityHidden(true)
+                Text(category.name)
                     .font(PitGoTypography.categoryTitle)
                     .foregroundStyle(tokens.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                if !isUnderMaintenance {
-                    if let minimumPrice = listing.minimumPrice {
-                        Text("A partir de \(formattedPrice(minimumPrice))")
-                            .font(PitGoTypography.caption)
-                            .foregroundStyle(tokens.textSecondary)
-                    } else {
-                        Text(listing.categoryName)
-                            .font(PitGoTypography.caption)
-                            .foregroundStyle(tokens.textSecondary)
-                    }
-                }
+                Text("\(category.services.count) \(category.services.count == 1 ? "serviço" : "serviços")")
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -407,18 +411,13 @@ private struct ServiceCard: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
-        .disabled(isUnderMaintenance)
-        .opacity(isUnderMaintenance ? 0.6 : 1)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(isUnderMaintenance ? "\(listing.serviceName), em manutenção" : listing.serviceName)
+        .accessibilityLabel("\(category.name), \(category.services.count) \(category.services.count == 1 ? "serviço" : "serviços"). Toque para ver os serviços.")
     }
 
-    /// Emoji por categoria (`categoryName` já vem de `list_home_services()`, `013`) — substitui o
-    /// ícone único genérico anterior por uma identidade visual por serviço; `🔧` cobre qualquer
-    /// categoria fora deste conjunto conhecido, sem quebrar para nomes futuros do catálogo.
     private var categoryEmoji: String {
-        let name = listing.categoryName.lowercased()
+        let name = category.name.lowercased()
         if name.contains("bateria") { return "🔋" }
         if name.contains("óleo") || name.contains("oleo") { return "🛢️" }
         if name.contains("pneu") { return "🛞" }
@@ -426,6 +425,43 @@ private struct ServiceCard: View {
         if name.contains("liga") || name.contains("partida") { return "🚗" }
         if name.contains("reparo") { return "🔧" }
         return "🔧"
+    }
+}
+
+private struct CategoryServicesSheet: View {
+    @Environment(\.pitGoTokens) private var tokens
+    let category: HomeServiceCategory
+    let onServiceTap: (HomeServiceListing) -> Void
+
+    var body: some View {
+        NavigationStack {
+            List(category.services) { service in
+                Button { onServiceTap(service) } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(service.serviceName)
+                            .font(PitGoTypography.categoryTitle)
+                            .foregroundStyle(tokens.textPrimary)
+                        if let price = service.minimumPrice {
+                            Text("A partir de \(formattedPrice(price))")
+                                .font(PitGoTypography.caption)
+                                .foregroundStyle(tokens.textSecondary)
+                        }
+                        if let description = service.serviceDescription, !description.isEmpty {
+                            Text(description)
+                                .font(PitGoTypography.caption)
+                                .foregroundStyle(tokens.textSecondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .scrollContentBackground(.hidden)
+            .background(tokens.background)
+            .navigationTitle(category.name)
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 
     private func formattedPrice(_ value: Decimal) -> String {

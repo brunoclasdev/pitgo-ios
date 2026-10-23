@@ -70,11 +70,15 @@ struct PitTecQuote: Decodable, Equatable {
     let amount: Decimal
     let currency: String
     let version: Int64
+    let durationMinutes: Int?
+    let servicePricingVersion: Int64?
     let clientConfirmationDeadline: Date?
     let clientConfirmedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case serviceAmount = "service_amount"
+        case durationMinutes = "duration_minutes"
+        case servicePricingVersion = "service_pricing_version"
         case distanceChargeAmount = "distance_charge_amount"
         case amount, currency, version
         case providerAmount = "provider_amount"
@@ -94,6 +98,8 @@ struct PitTecQuote: Decodable, Equatable {
             ?? 0
         currency = try container.decodeIfPresent(String.self, forKey: .currency) ?? "BRL"
         version = try container.decodeIfPresent(Int64.self, forKey: .version) ?? 1
+        durationMinutes = try container.decodeIfPresent(Int.self, forKey: .durationMinutes)
+        servicePricingVersion = try container.decodeIfPresent(Int64.self, forKey: .servicePricingVersion)
         clientConfirmationDeadline = try container.decodeIfPresent(Date.self, forKey: .clientConfirmationDeadline)
             ?? container.decodeIfPresent(Date.self, forKey: .expiresAt)
         clientConfirmedAt = try container.decodeIfPresent(Date.self, forKey: .clientConfirmedAt)
@@ -105,10 +111,12 @@ struct PitTecQuote: Decodable, Equatable {
 struct PitTecProviderIdentity: Decodable, Equatable {
     let providerID: UUID
     let displayName: String
+    let ratingSummary: ProviderRatingSummary?
 
     enum CodingKeys: String, CodingKey {
         case providerID = "provider_id"
         case displayName = "display_name"
+        case ratingSummary = "rating_summary"
     }
 }
 
@@ -211,6 +219,7 @@ struct PitTecDispatchSnapshot: Decodable, Equatable {
     let provider: PitTecProviderIdentity?
     let appointment: PitTecAppointment?
     let payment: PitTecPaymentSnapshot?
+    let ratingState: ServiceRatingState?
 
     enum CodingKeys: String, CodingKey {
         case searchID = "search_id"
@@ -224,6 +233,7 @@ struct PitTecDispatchSnapshot: Decodable, Equatable {
         case lastEvent = "last_event"
         case lastEventAt = "last_event_at"
         case offer, provider, appointment, payment
+        case ratingState = "rating_state"
     }
 
     /// A chegada preenche arrived_at mantendo ACCEPTED; START inicia o atendimento.

@@ -1,0 +1,10 @@
+//
+//  Prod.xcconfig
+//  pitgo
+//
+//  `027`: ambiente de produção — backend e credenciais reais do Mercado Pago (pagamento integrado).
+//
+ENVIRONMENT_ID = PROD
+
+#include "Shared.xcconfig"
+#include? "Prod.secrets.xcconfig"

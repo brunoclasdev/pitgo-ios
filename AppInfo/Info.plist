@@ -20,6 +20,11 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+		<string>waze</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>
@@ -59,6 +64,12 @@
 	<string>Prestadores móveis usam sua localização para que o cliente acompanhe o atendimento aceito em tempo real, mesmo com o app em segundo plano. A publicação para automaticamente ao concluir ou cancelar o atendimento.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Usamos sua localização para verificar o endereço da empresa no cadastro e para mostrar/buscar prestadores próximos no mapa.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Use a câmera para registrar a condição do veículo na vistoria do atendimento de Guincho.</string>
+	<key>ENVIRONMENT_ID</key>
+	<string>$(ENVIRONMENT_ID)</string>
+	<key>SUPABASE_PROJECT_REF</key>
+	<string>$(supabaseProjectRef)</string>
 	<key>SUPABASE_URL</key>
 	<string>$(supabaseUrl)</string>
 	<key>SUPABASE_KEY</key>

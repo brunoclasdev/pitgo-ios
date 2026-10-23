@@ -19,6 +19,21 @@ enum PitTecPricingFetchResult {
     case offline
 }
 
+private struct CurrentServicePricingParams: Encodable { let p_service_id: UUID? }
+private struct CurrentServicePricingResponse: Decodable {
+    let pittec: [CurrentPitTecPrice]
+}
+private struct CurrentPitTecPrice: Decodable {
+    let serviceID: UUID
+    let version: Int64
+    let price: Decimal
+    let durationMinutes: Int
+    enum CodingKeys: String, CodingKey {
+        case serviceID = "service_id", version, price
+        case durationMinutes = "duration_minutes"
+    }
+}
+
 final class PitTecPricingRepository {
     private let client: SupabaseClient
 
@@ -38,17 +53,13 @@ final class PitTecPricingRepository {
                 .value
             guard let service = services.first else { return .notFound }
 
-            let offers: [ProviderServiceRow] = try await client
-                .from("provider_services")
-                .select()
-                .eq("provider_id", value: providerID)
-                .eq("service_id", value: service.id)
-                .limit(1)
+            let response: CurrentServicePricingResponse = try await client
+                .rpc("get_current_service_pricing", params: CurrentServicePricingParams(p_service_id: service.id))
                 .execute()
                 .value
-            guard let offer = offers.first else { return .notFound }
+            guard let price = response.pittec.first(where: { $0.serviceID == service.id }) else { return .notFound }
 
-            return .success(PitTecPricingInfo(price: offer.price, serviceName: service.name))
+            return .success(PitTecPricingInfo(price: price.price, serviceName: service.name, durationMinutes: price.durationMinutes, version: price.version))
         } catch {
             return .offline
         }

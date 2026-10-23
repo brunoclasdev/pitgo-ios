@@ -8,6 +8,7 @@
 //
 
 import Combine
+import CoreLocation
 import Foundation
 
 @MainActor
@@ -84,6 +85,31 @@ final class PitTecIncomingRequestViewModel: ObservableObject {
         isStarted = false
         state = .noIncoming
         start()
+    }
+
+    /// FR-012: o navegador externo só está autorizado antes da chegada e usa a posição atual do
+    /// cliente retornada por uma leitura autenticada nova.
+    func externalNavigationDestination() async -> CLLocationCoordinate2D? {
+        guard pendingAction == nil,
+              case let .reserved(current, _) = state,
+              let currentID = current.appointment?.appointmentID,
+              current.appointment?.status == .accepted,
+              !current.hasArrived else { return nil }
+
+        guard case let .snapshot(latest) = await repository.getActiveDispatch(),
+              latest.revision >= acceptedRevision,
+              latest.appointment?.appointmentID == currentID,
+              latest.appointment?.status == .accepted,
+              !latest.hasArrived else { return nil }
+        apply(.snapshot(latest))
+
+        guard case let .ready(context) = await repository.routeContext(appointmentID: currentID),
+              case let .reserved(currentSnapshot, _) = state,
+              currentSnapshot.appointment?.appointmentID == currentID,
+              currentSnapshot.appointment?.status == .accepted,
+              !currentSnapshot.hasArrived else { return nil }
+        let destination = CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude)
+        return ExternalNavigator.isValid(destination) ? destination : nil
     }
 
     private func refresh() {

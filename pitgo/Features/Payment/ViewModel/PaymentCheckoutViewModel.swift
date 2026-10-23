@@ -46,24 +46,32 @@ final class PaymentCheckoutViewModel: ObservableObject {
     private let serviceID: UUID
     let dispatchKind: PaymentDispatchKind
     private let catalogRepository: ServiceCatalogRepository
-    private let paymentRepository: PaymentRepository
+    private let paymentRepository: PaymentGateway
     private let savedCardRepository: SavedCardRepository
     /// `021` — presente só para `PITTEC_AUTO_SEQUENTIAL`; carrega o valor já conhecido do
     /// orçamento, pulando o cálculo de `amount` que `loadAmountAndCards()` faz para os demais casos.
     private let pittecContext: PitTecPaymentContext?
+    /// `028` — mesmo papel de `pittecContext`, para `GUINCHO_DIRECT`: o valor já é o total final
+    /// mostrado no mini card/"Contratar" (FR-007), nunca recalculado aqui nem vindo do catálogo.
+    private let guinchoContext: GuinchoPaymentContext?
 
     private var amount: Decimal = 0
     private var savedCards: [SavedCard] = []
     private var isStarted = false
     private var approvalPollTask: Task<Void, Never>?
 
+    /// `027`: liga os botões de simulação em `PaymentCheckoutView` (Dev) — `false` para
+    /// `PaymentRepository` real.
+    var simulated: Bool { paymentRepository.simulated }
+
     init(
         serviceID: UUID,
         dispatchKind: PaymentDispatchKind,
         catalogRepository: ServiceCatalogRepository,
-        paymentRepository: PaymentRepository,
+        paymentRepository: PaymentGateway,
         savedCardRepository: SavedCardRepository,
-        pittecContext: PitTecPaymentContext? = nil
+        pittecContext: PitTecPaymentContext? = nil,
+        guinchoContext: GuinchoPaymentContext? = nil
     ) {
         self.serviceID = serviceID
         self.dispatchKind = dispatchKind
@@ -71,7 +79,8 @@ final class PaymentCheckoutViewModel: ObservableObject {
         self.paymentRepository = paymentRepository
         self.savedCardRepository = savedCardRepository
         self.pittecContext = pittecContext
-        self.requestID = pittecContext?.searchID ?? UUID()
+        self.guinchoContext = guinchoContext
+        self.requestID = pittecContext?.searchID ?? guinchoContext?.searchID ?? UUID()
     }
 
     func start() {
@@ -99,6 +108,14 @@ final class PaymentCheckoutViewModel: ObservableObject {
                 return
             }
             amount = pittecContext.amount
+        case .guinchoDirect:
+            // `028`: total final já calculado em `GuinchoMapViewModel.contract()`/exibido no mini
+            // card — nunca recalculado aqui.
+            guard let guinchoContext, guinchoContext.amount > 0 else {
+                state = .invalidService
+                return
+            }
+            amount = guinchoContext.amount
         case .mobileSequential:
             guard
                 case let .content(listings) = await catalogRepository.fetchHomeServices(),
@@ -110,6 +127,11 @@ final class PaymentCheckoutViewModel: ObservableObject {
                 return
             }
             amount = minimumPrice
+        }
+
+        if EnvironmentConfig.current.id == .homol {
+            // Mesmo contrato do Android: valor estável nesta instância, em centavos (R$1–R$2).
+            amount = Decimal(Int.random(in: 100...200)) / 100
         }
 
         // Mantém os cartões disponíveis também ao restaurar uma tentativa recusada.
@@ -162,6 +184,25 @@ final class PaymentCheckoutViewModel: ObservableObject {
         createPayment(method: .pix, savedCardID: nil)
     }
 
+    /// `027` US2: só chamado pelos botões de simulação (Dev) — `simulated` guarda a visibilidade na
+    /// View; aqui só confirmamos que o gateway realmente suporta `simulate` antes de chamar.
+    func simulate(_ status: PaymentStatus) {
+        guard let simulatable = paymentRepository as? SimulatablePaymentGateway else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let result = await simulatable.simulate(requestID: self.requestID, status: status)
+            if case let .found(_, status, _) = result {
+                self.applyStatus(status)
+            }
+        }
+    }
+
+    /// Botão "Simular falha" — atalho só de UI (não chama o gateway) para testar a tela genérica de
+    /// falha sem depender de um status real de pagamento (mesmo `simulateFailure` do Android).
+    func simulateFailure() {
+        state = .failure
+    }
+
     func chooseAnotherMethod() {
         approvalPollTask?.cancel()
         approvalPollTask = nil
@@ -177,12 +218,13 @@ final class PaymentCheckoutViewModel: ObservableObject {
             switch await self.paymentRepository.createPayment(
                 requestID: self.requestID,
                 dispatchKind: self.dispatchKind,
+                serviceID: self.serviceID,
                 amount: self.amount,
                 method: method,
                 savedCardID: savedCardID,
                 cardSecurityCodeToken: cardSecurityCodeToken,
-                appointmentID: self.pittecContext?.appointmentID,
-                quoteVersion: self.pittecContext?.quoteVersion
+                appointmentID: self.pittecContext?.appointmentID ?? self.guinchoContext?.appointmentID,
+                quoteVersion: self.pittecContext?.quoteVersion ?? self.guinchoContext?.quoteVersion
             ) {
             case let .created(result):
                 self.apply(result)

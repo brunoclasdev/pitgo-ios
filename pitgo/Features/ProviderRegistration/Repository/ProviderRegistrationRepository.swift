@@ -97,7 +97,10 @@ final class ProviderRegistrationRepository {
                 if page.count < Self.pageSize { break }
                 offset += Self.pageSize
             }
-            guard !offerRows.isEmpty else { return .inconsistent }
+            if offerRows.isEmpty {
+                guard provider.providerKind == .store else { return .inconsistent }
+                return .complete(ProviderSummary(provider: provider, address: address, offers: []))
+            }
 
             let serviceIDs = Array(Set(offerRows.map(\.serviceID)))
             let services: [CatalogService] = try await client
@@ -146,6 +149,7 @@ final class ProviderRegistrationRepository {
         case serviceUnavailable
         case emailUnavailable
         case cnpjUnavailable
+        case duplicateVehicle
         case duplicateService
         case catalogChanged
         case geocodeExpired
@@ -167,7 +171,9 @@ final class ProviderRegistrationRepository {
                 email: command.company.email,
                 phone: command.company.phone,
                 cnpj: command.company.cnpj,
-                location_mode: command.locationMode.rawValue
+                location_mode: command.locationMode.rawValue,
+                provider_kind: command.providerKind.rawValue,
+                vehicle: command.vehicle.map { ProviderVehiclePayload(plate: $0.plate, make: $0.make, model: $0.model, color: $0.color) }
             ),
             p_address: AddressPayload(
                 street: command.address.street,
@@ -193,7 +199,7 @@ final class ProviderRegistrationRepository {
 
         do {
             let result: CreateProviderRegistrationResult = try await client
-                .rpc("create_provider_registration", params: params)
+                .rpc(command.providerKind == .store ? "create_store_registration" : "create_provider_registration", params: params)
                 .execute()
                 .value
 
@@ -225,6 +231,7 @@ final class ProviderRegistrationRepository {
             case "23505":
                 if message.contains("providers_email") { return .emailUnavailable }
                 if message.contains("providers_cnpj") { return .cnpjUnavailable }
+                if message.contains("provider_vehicles") { return .duplicateVehicle }
                 if message.contains("provider_services") { return .duplicateService }
                 return .contract
             case "23514", "22023":

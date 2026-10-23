@@ -24,7 +24,7 @@ final class PitTecClientViewModel: ObservableObject {
 
     private let serviceID: UUID
     private let repository: PitTecRepository
-    private let paymentRepository: PaymentRepository
+    private let paymentRepository: PaymentGateway
     private let locationRepository: DeviceLocationRepository
     private var acceptedRevision: Int64 = -1
     private var pendingAction: PendingDispatchAction?
@@ -41,7 +41,7 @@ final class PitTecClientViewModel: ObservableObject {
     init(
         serviceID: UUID,
         repository: PitTecRepository,
-        paymentRepository: PaymentRepository,
+        paymentRepository: PaymentGateway,
         locationRepository: DeviceLocationRepository
     ) {
         self.serviceID = serviceID

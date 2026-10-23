@@ -26,6 +26,9 @@ struct PitTecHomeValuesTab: View {
                     Text(formattedPrice(info.price))
                         .font(PitGoTypography.sectionTitle)
                         .accessibilityAddTraits(.isHeader)
+                    if let duration = info.durationMinutes {
+                        Text("Duração: \(duration) min").font(PitGoTypography.caption).foregroundStyle(tokens.textSecondary)
+                    }
                 }
             case .failure:
                 Text("Não foi possível carregar o valor configurado agora.")

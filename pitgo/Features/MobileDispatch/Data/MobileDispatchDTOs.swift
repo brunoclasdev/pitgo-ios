@@ -16,6 +16,13 @@ import Foundation
 /// `.snapshot` é sintético — marca o formato (1) acima, quando o JSON é o snapshot diretamente
 /// (identificado pela presença de `search_id` na raiz), sem chave `outcome`.
 enum DispatchOutcome: String, Decodable {
+    case cancelled = "CANCELLED"
+    case created = "CREATED"
+    case existing = "EXISTING"
+    case applied = "APPLIED"
+    case accepted = "ACCEPTED"
+    case completed = "COMPLETED"
+    case disputed = "DISPUTED"
     case none = "NONE"
     case active = "ACTIVE"
     case staleRevision = "STALE_REVISION"
@@ -119,4 +126,25 @@ struct CancelMobileAppointmentParams: Encodable {
     let p_appointment_id: UUID
     let p_reason: String
     let p_expected_revision: Int64
+}
+
+// MARK: - `028` — Guincho pós-aceite (chegada, início, conclusão, contestação)
+
+struct StartGuinchoTransportParams: Encodable {
+    let p_appointment_id: UUID
+    let p_expected_revision: Int64
+    let p_operation_id: UUID
+}
+
+struct ArriveGuinchoAppointmentParams: Encodable {
+    let p_operation_id: UUID
+    let p_appointment_id: UUID
+    let p_expected_revision: Int64
+}
+
+struct DisputeGuinchoCompletionParams: Encodable {
+    let p_appointment_id: UUID
+    let p_expected_revision: Int64
+    let p_operation_id: UUID
+    let p_reason: String
 }

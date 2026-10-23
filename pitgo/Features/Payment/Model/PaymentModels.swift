@@ -30,6 +30,9 @@ import Foundation
 enum PaymentDispatchKind: String, Codable, Hashable {
     case mobileSequential = "MOBILE_SEQUENTIAL"
     case pittecAutoSequential = "PITTEC_AUTO_SEQUENTIAL"
+    /// `028` — o valor cobrado vem do orçamento do guincheiro escolhido (`appointment.quotedPrice`
+    /// já resolvido para o total do cliente), nunca de uma tarifa fixa do app.
+    case guinchoDirect = "GUINCHO_DIRECT"
 }
 
 enum PaymentMethodKind: String, Codable, Hashable {

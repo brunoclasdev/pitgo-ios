@@ -37,30 +37,49 @@ struct PitGoMapView: UIViewRepresentable {
     let annotations: [PitGoMapAnnotationItem]
     var centerCoordinate: CLLocationCoordinate2D?
     var zoomLevel: Double = 13
+    /// Quando definido, uma nova coordenada só move a câmera quando este gatilho mudar. Permite
+    /// atualizar o marcador em tempo real sem desfazer um pan manual.
+    var centerTrigger: Int?
     var showsUserLocation: Bool = false
     /// `021`: quando presente (≥2 coordenadas), enquadra todas juntas (`setVisibleCoordinates`) em
     /// vez de centralizar num único ponto — usado pelo acompanhamento pós-confirmação do PitTec
     /// para mostrar cliente + prestador simultaneamente. Tem prioridade sobre `centerCoordinate`
     /// quando ambos são fornecidos.
     var fitCoordinates: [CLLocationCoordinate2D]?
+    /// `026` FR-014: o enquadramento só é refeito quando este valor muda — nunca automaticamente a
+    /// cada atualização de `fitCoordinates` (que muda a cada novo fix de localização). O chamador
+    /// incrementa para reenquadrar explicitamente (abertura inicial, botão "Centralizar").
+    var fitTrigger: Int = 0
+    /// `026`: espaço reservado na borda inferior do mapa para o resumo compacto/expandido não
+    /// cobrir os marcadores enquadrados — em pontos, já incluindo a margem de segurança.
+    var fitBottomPadding: CGFloat = 60
     var onAnnotationSelected: ((String) -> Void)?
     /// Reportado ao final de um gesto do usuário (pan/zoom) — usado pelo botão "Buscar nesta área".
     var onRegionChanged: ((CLLocationCoordinate2D) -> Void)?
+    /// Chamado somente quando o delegate identifica gesto de toque/arrasto do usuário.
+    var onUserGesture: (() -> Void)?
     /// Linha simples entre dois ou mais pontos — usada como estimativa direta quando não há rota
     /// calculada (`015` FR-023: "identificando como estimativa", nunca como orientação viária real).
     /// `nil`/vazio remove a linha.
     var routeLine: [CLLocationCoordinate2D]?
+    /// Versão autoritativa da rota viária; evita reescrever GeoJSON quando só o marcador muda.
+    var routeVersion: Int64?
+    /// As linhas de estimativa direta permanecem tracejadas; rotas do roteador são sólidas.
+    var routeIsEstimated = true
 
     func makeUIView(context: Context) -> MLNMapView {
-        let mapView = MLNMapView(frame: .zero, styleURL: ManagedMapStyleConfiguration.current.styleURL)
+        let mapView = LayoutAwareMapView(frame: .zero, styleURL: ManagedMapStyleConfiguration.current.styleURL)
         mapView.delegate = context.coordinator
+        mapView.onLayout = { [weak coordinator = context.coordinator] map in
+            coordinator?.applyPendingFit(in: map)
+        }
         mapView.showsUserLocation = showsUserLocation
         if let fitCoordinates, fitCoordinates.count >= 2 {
-            Self.fit(fitCoordinates, in: mapView, animated: false)
-            context.coordinator.lastFittedCoordinates = fitCoordinates
+            context.coordinator.requestFit(fitCoordinates, trigger: fitTrigger, padding: fitBottomPadding, in: mapView)
         } else if let centerCoordinate {
             mapView.setCenter(centerCoordinate, zoomLevel: zoomLevel, animated: false)
             context.coordinator.lastCenteredCoordinate = centerCoordinate
+            context.coordinator.lastCenterTrigger = centerTrigger
         }
         return mapView
     }
@@ -69,6 +88,7 @@ struct PitGoMapView: UIViewRepresentable {
         mapView.showsUserLocation = showsUserLocation
         context.coordinator.onAnnotationSelected = onAnnotationSelected
         context.coordinator.onRegionChanged = onRegionChanged
+        context.coordinator.onUserGesture = onUserGesture
 
         let existing = mapView.annotations ?? []
         mapView.removeAnnotations(existing)
@@ -82,31 +102,53 @@ struct PitGoMapView: UIViewRepresentable {
         mapView.addAnnotations(pointAnnotations)
 
         if let fitCoordinates, fitCoordinates.count >= 2 {
-            if fitCoordinates != context.coordinator.lastFittedCoordinates {
-                Self.fit(fitCoordinates, in: mapView, animated: true)
-                context.coordinator.lastFittedCoordinates = fitCoordinates
+            // `026` FR-014/SC-006: só reenquadra quando `fitTrigger` muda de fato — nunca a cada
+            // atualização de localização, para não sobrescrever um pan/zoom manual do cliente.
+            if context.coordinator.lastFitTrigger != fitTrigger {
+                context.coordinator.requestFit(fitCoordinates, trigger: fitTrigger, padding: fitBottomPadding, in: mapView)
             }
-        } else if let centerCoordinate, centerCoordinate != context.coordinator.lastCenteredCoordinate {
-            mapView.setCenter(centerCoordinate, zoomLevel: zoomLevel, animated: true)
-            context.coordinator.lastCenteredCoordinate = centerCoordinate
+        } else if let centerCoordinate {
+            let shouldCenter: Bool
+            if let centerTrigger {
+                shouldCenter = centerTrigger != context.coordinator.lastCenterTrigger
+            } else {
+                shouldCenter = centerCoordinate != context.coordinator.lastCenteredCoordinate
+            }
+            if shouldCenter {
+                mapView.setCenter(centerCoordinate, zoomLevel: zoomLevel, animated: true)
+                context.coordinator.lastCenteredCoordinate = centerCoordinate
+                context.coordinator.lastCenterTrigger = centerTrigger
+            }
         }
 
-        context.coordinator.currentRouteLine = routeLine
-        Self.applyRouteLine(routeLine, to: mapView.style)
+        if let routeVersion {
+            if context.coordinator.currentRouteVersion != routeVersion {
+                context.coordinator.currentRouteLine = routeLine
+                context.coordinator.currentRouteVersion = routeVersion
+                context.coordinator.currentRouteIsEstimated = routeIsEstimated
+                Self.applyRouteLine(routeLine, estimated: routeIsEstimated, to: mapView.style)
+            }
+        } else {
+            context.coordinator.currentRouteVersion = nil
+            context.coordinator.currentRouteLine = routeLine
+            context.coordinator.currentRouteIsEstimated = routeIsEstimated
+            Self.applyRouteLine(routeLine, estimated: routeIsEstimated, to: mapView.style)
+        }
     }
 
-    /// `021`: enquadra todas as coordenadas dadas com um padding seguro — usado para mostrar
+    /// `021`/`026`: enquadra todas as coordenadas dadas com um padding seguro — usado para mostrar
     /// cliente + PitTec juntos, sem sobrescrever um pan/zoom manual em toda atualização (só refeito
-    /// quando `fitCoordinates` muda de fato, ver `updateUIView`).
-    private static func fit(_ coordinates: [CLLocationCoordinate2D], in mapView: MLNMapView, animated: Bool) {
-        let padding = UIEdgeInsets(top: 60, left: 48, bottom: 60, right: 48)
+    /// quando `fitTrigger` muda de fato, ver `updateUIView`). `bottomPadding` reserva a área do
+    /// resumo compacto/expandido para os marcadores não ficarem escondidos atrás dele.
+    private static func fit(_ coordinates: [CLLocationCoordinate2D], in mapView: MLNMapView, bottomPadding: CGFloat, animated: Bool) {
+        let padding = UIEdgeInsets(top: 60, left: 48, bottom: bottomPadding, right: 48)
         coordinates.withUnsafeBufferPointer { buffer in
             guard let baseAddress = buffer.baseAddress else { return }
             mapView.setVisibleCoordinates(baseAddress, count: UInt(buffer.count), edgePadding: padding, animated: animated)
         }
     }
 
-    fileprivate static func applyRouteLine(_ routeLine: [CLLocationCoordinate2D]?, to style: MLNStyle?) {
+    fileprivate static func applyRouteLine(_ routeLine: [CLLocationCoordinate2D]?, estimated: Bool = true, to style: MLNStyle?) {
         guard let style else { return }
         guard let routeLine, routeLine.count >= 2 else {
             if let layer = style.layer(withIdentifier: Self.routeLineLayerID) { style.removeLayer(layer) }
@@ -116,35 +158,58 @@ struct PitGoMapView: UIViewRepresentable {
         let polyline = MLNPolylineFeature(coordinates: routeLine, count: UInt(routeLine.count))
         if let source = style.source(withIdentifier: Self.routeLineSourceID) as? MLNShapeSource {
             source.shape = polyline
+            if let layer = style.layer(withIdentifier: Self.routeLineLayerID) as? MLNLineStyleLayer {
+                layer.lineDashPattern = estimated ? NSExpression(forConstantValue: [2, 2]) : nil
+            }
         } else {
             let source = MLNShapeSource(identifier: Self.routeLineSourceID, shape: polyline)
             style.addSource(source)
             let layer = MLNLineStyleLayer(identifier: Self.routeLineLayerID, source: source)
             layer.lineColor = NSExpression(forConstantValue: UIColor.systemBlue)
             layer.lineWidth = NSExpression(forConstantValue: 3)
-            layer.lineDashPattern = NSExpression(forConstantValue: [2, 2]) // tracejada = estimativa, nunca rota real
+            layer.lineDashPattern = estimated ? NSExpression(forConstantValue: [2, 2]) : nil
             style.addLayer(layer)
         }
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onAnnotationSelected: onAnnotationSelected, onRegionChanged: onRegionChanged)
+        Coordinator(onAnnotationSelected: onAnnotationSelected, onRegionChanged: onRegionChanged, onUserGesture: onUserGesture)
     }
 
     final class Coordinator: NSObject, MLNMapViewDelegate {
         var onAnnotationSelected: ((String) -> Void)?
         var onRegionChanged: ((CLLocationCoordinate2D) -> Void)?
+        var onUserGesture: (() -> Void)?
         var lastCenteredCoordinate: CLLocationCoordinate2D?
-        /// `021`: última lista enquadrada via `fitCoordinates`, para só reenquadrar quando ela muda
-        /// de fato (mesmo espírito de `lastCenteredCoordinate` para `centerCoordinate`).
-        var lastFittedCoordinates: [CLLocationCoordinate2D]?
+        var lastCenterTrigger: Int?
+        private var regionChangeWasUserGesture = false
+        /// `026`: último `fitTrigger` aplicado — só reenquadra quando ele muda (mesmo espírito de
+        /// `lastCenteredCoordinate` para `centerCoordinate`, ver FR-014).
+        var lastFitTrigger: Int?
+        private var pendingFit: (coordinates: [CLLocationCoordinate2D], trigger: Int, padding: CGFloat)?
+
+        func requestFit(_ coordinates: [CLLocationCoordinate2D], trigger: Int, padding: CGFloat, in map: MLNMapView) {
+            pendingFit = (coordinates, trigger, padding)
+            applyPendingFit(in: map)
+        }
+
+        func applyPendingFit(in map: MLNMapView) {
+            // makeUIView ainda tem frame zero; só consome o gatilho após o layout real.
+            guard map.bounds.width > 0, map.bounds.height > 0, let request = pendingFit else { return }
+            pendingFit = nil
+            PitGoMapView.fit(request.coordinates, in: map, bottomPadding: request.padding, animated: false)
+            lastFitTrigger = request.trigger
+        }
         /// Reaplicado em `didFinishLoading` — cobre o caso de `routeLine` ter sido pedido antes de o
         /// estilo (assíncrono) terminar de carregar.
         var currentRouteLine: [CLLocationCoordinate2D]?
+        var currentRouteVersion: Int64?
+        var currentRouteIsEstimated = true
 
-        init(onAnnotationSelected: ((String) -> Void)?, onRegionChanged: ((CLLocationCoordinate2D) -> Void)?) {
+        init(onAnnotationSelected: ((String) -> Void)?, onRegionChanged: ((CLLocationCoordinate2D) -> Void)?, onUserGesture: (() -> Void)?) {
             self.onAnnotationSelected = onAnnotationSelected
             self.onRegionChanged = onRegionChanged
+            self.onUserGesture = onUserGesture
         }
 
         func mapView(_ mapView: MLNMapView, didSelect annotation: MLNAnnotation) {
@@ -153,11 +218,30 @@ struct PitGoMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
-            onRegionChanged?(mapView.centerCoordinate)
+            let wasUserGesture = regionChangeWasUserGesture
+            regionChangeWasUserGesture = false
+            // MapLibre also calls this delegate after programmatic camera changes. Treat only a
+            // real pan/zoom as user movement; consumers such as the towing destination picker use
+            // this callback to invalidate a typed address and reverse-geocode the map center.
+            guard wasUserGesture else { return }
+            let center = mapView.centerCoordinate
+            // Remember the map's actual post-gesture center before notifying SwiftUI. Otherwise
+            // updateUIView sees the new center as a fresh camera command and recenters at the
+            // default zoom, making manual pan/zoom feel locked.
+            lastCenteredCoordinate = center
+            onRegionChanged?(center)
+            onUserGesture?()
+        }
+
+        func mapView(_ mapView: MLNMapView, regionWillChangeAnimated animated: Bool) {
+            regionChangeWasUserGesture = mapView.gestureRecognizers?.contains {
+                $0.state == .began || $0.state == .changed
+            } ?? false
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-            PitGoMapView.applyRouteLine(currentRouteLine, to: style)
+            currentRouteVersion = nil // estilo novo exige reinstalar o GeoJSON mesmo com a mesma versão
+            PitGoMapView.applyRouteLine(currentRouteLine, estimated: currentRouteIsEstimated, to: style)
         }
 
         /// Pino padrão do sistema quando `symbolName == nil` (endereço fixo, `010`); um círculo com
@@ -213,5 +297,13 @@ private nonisolated final class IdentifiedPointAnnotation: MLNPointAnnotation {
 extension CLLocationCoordinate2D: @retroactive Equatable {
     public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
         lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
+    }
+}
+
+private final class LayoutAwareMapView: MLNMapView {
+    var onLayout: ((MLNMapView) -> Void)?
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?(self)
     }
 }

@@ -55,6 +55,7 @@ struct Provider: Decodable {
     let phone: String
     let cnpj: String
     let locationMode: ProviderLocationMode
+    let providerKind: ProviderKind?
     let active: Bool
     let available: Bool
 
@@ -62,6 +63,7 @@ struct Provider: Decodable {
         case id, name, description, email, phone, cnpj, active, available
         case accountID = "account_id"
         case locationMode = "location_mode"
+        case providerKind = "provider_kind"
     }
 }
 
@@ -127,6 +129,15 @@ struct ProviderPayload: Encodable {
     let phone: String
     let cnpj: String
     let location_mode: String
+    let provider_kind: String
+    let vehicle: ProviderVehiclePayload?
+}
+
+struct ProviderVehiclePayload: Encodable {
+    let plate: String
+    let make: String
+    let model: String
+    let color: String
 }
 
 struct AddressPayload: Encodable {

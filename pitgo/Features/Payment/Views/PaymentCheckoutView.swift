@@ -34,9 +34,10 @@ struct PaymentCheckoutView: View {
         serviceID: UUID,
         dispatchKind: PaymentDispatchKind,
         catalogRepository: ServiceCatalogRepository,
-        paymentRepository: PaymentRepository,
+        paymentRepository: PaymentGateway,
         savedCardRepository: SavedCardRepository,
         pittecContext: PitTecPaymentContext? = nil,
+        guinchoContext: GuinchoPaymentContext? = nil,
         onApproved: @escaping (UUID) -> Void,
         onCancelled: @escaping () -> Void = {},
         onSessionExpired: @escaping () -> Void
@@ -47,7 +48,8 @@ struct PaymentCheckoutView: View {
             catalogRepository: catalogRepository,
             paymentRepository: paymentRepository,
             savedCardRepository: savedCardRepository,
-            pittecContext: pittecContext
+            pittecContext: pittecContext,
+            guinchoContext: guinchoContext
         ))
         self.onApproved = onApproved
         self.onCancelled = onCancelled
@@ -56,7 +58,10 @@ struct PaymentCheckoutView: View {
 
     var body: some View {
         NavigationStack {
-            content
+            VStack(spacing: 0) {
+                if viewModel.simulated { simulationBanner }
+                content
+            }
                 .padding(24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(tokens.background)
@@ -90,9 +95,39 @@ struct PaymentCheckoutView: View {
         }
     }
 
+    /// `027` US2: só existe quando `viewModel.simulated` (ambiente Dev) — testa aprovação, recusa,
+    /// expiração e falha genérica sem nenhuma chamada ao Mercado Pago (mesmo banner/botões de
+    /// `PaymentCheckoutScreen` no Android).
+    @ViewBuilder
+    private var simulationBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Ambiente de desenvolvimento — pagamento simulado")
+                .font(PitGoTypography.caption)
+                .foregroundStyle(tokens.textSecondary)
+            if isAwaitingSimulatedConfirmation {
+                HStack(spacing: 8) {
+                    Button("Aprovar") { viewModel.simulate(.approved) }
+                    Button("Rejeitar") { viewModel.simulate(.rejected) }
+                    Button("Expirar") { viewModel.simulate(.expired) }
+                }
+                .frame(minHeight: 44)
+                Button("Simular falha", action: viewModel.simulateFailure)
+                    .frame(minHeight: 44)
+            }
+        }
+        .padding(.bottom, 12)
+    }
+
+    private var isAwaitingSimulatedConfirmation: Bool {
+        switch viewModel.state {
+        case .loadingAmount, .awaitingPix, .awaitingCardConfirmation: true
+        default: false
+        }
+    }
+
     private var isBusy: Bool {
         switch viewModel.state {
-        case .loadingCardContext, .confirmingCard, .creatingPayment, .awaitingPix, .awaitingCardConfirmation: true
+        case .loadingCardContext, .creatingPayment: true
         default: false
         }
     }

@@ -56,9 +56,9 @@ struct PitTecHomeView: View {
                             onSessionExpired: onSignOut
                         )
                         .id(appointmentID)
-                    case .serviceMap, .requestService, .providerMigrationStart, .appointmentTracking,
+                    case .serviceMap, .requestService, .providerMigrationStart, .appointmentTracking, .guinchoInspectionReview,
                          .providerAppointmentTracking, .mobileDispatchNewSearch, .mobileDispatchSearch,
-                         .providerRequest, .pitTec, .clientAddress, .paymentMethods:
+                         .providerRequest, .providerGuinchoHistory, .pitTec, .clientAddress, .paymentMethods, .guincho, .storeCatalog:
                         EmptyView()
                     }
                 }

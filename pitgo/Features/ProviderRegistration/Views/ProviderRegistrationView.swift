@@ -27,6 +27,7 @@ struct ProviderRegistrationView: View {
         verificationRepository: ProviderAddressVerificationRepository,
         accountID: UUID,
         authEmail: String,
+        providerKind: ProviderKind,
         onFinished: @escaping () -> Void,
         onSessionExpired: @escaping () -> Void
     ) {
@@ -34,7 +35,8 @@ struct ProviderRegistrationView: View {
             repository: repository,
             verificationRepository: verificationRepository,
             accountID: accountID,
-            authEmail: authEmail
+            authEmail: authEmail,
+            providerKind: providerKind
         ))
         self.onFinished = onFinished
         self.onSessionExpired = onSessionExpired
@@ -97,16 +99,23 @@ struct ProviderRegistrationView: View {
                 companyFields(content)
             }
             Section("Modalidade") {
-                locationModeField(content)
+                Text(content.draft.providerKind.title)
+                    .font(PitGoTypography.body)
+                Text("Valores e duração dos atendimentos são definidos pela PitGo.")
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
             }
             Section("Endereço") {
                 addressFields(content)
+            }
+            if content.draft.providerKind == .guincho {
+                Section("Veículo de atendimento") { vehicleFields(content) }
             }
             if content.showsOffersSection {
                 Section("Serviços oferecidos") {
                     offersSection(content)
                 }
-            } else {
+            } else if content.draft.providerKind != .store {
                 Section("Serviço") {
                     implicitServiceSection(content)
                 }
@@ -237,6 +246,26 @@ struct ProviderRegistrationView: View {
             .foregroundStyle(tokens.textSecondary)
     }
 
+    @ViewBuilder
+    private func vehicleFields(_ content: EditingContent) -> some View {
+        labeledField("Placa", error: content.fieldErrors[.vehicle(.plate)]) {
+            TextField("ABC1D23", text: Binding(get: { content.draft.vehiclePlate }, set: { viewModel.updateVehiclePlate($0) }))
+                .textInputAutocapitalization(.characters).autocorrectionDisabled().focused($focusedField, equals: .vehicle(.plate))
+        }
+        labeledField("Marca", error: content.fieldErrors[.vehicle(.make)]) {
+            TextField("Marca", text: Binding(get: { content.draft.vehicleMake }, set: { viewModel.updateVehicleMake($0) }))
+                .focused($focusedField, equals: .vehicle(.make))
+        }
+        labeledField("Modelo", error: content.fieldErrors[.vehicle(.model)]) {
+            TextField("Modelo", text: Binding(get: { content.draft.vehicleModel }, set: { viewModel.updateVehicleModel($0) }))
+                .focused($focusedField, equals: .vehicle(.model))
+        }
+        labeledField("Cor", error: content.fieldErrors[.vehicle(.color)]) {
+            TextField("Cor", text: Binding(get: { content.draft.vehicleColor }, set: { viewModel.updateVehicleColor($0) }))
+                .focused($focusedField, equals: .vehicle(.color))
+        }
+    }
+
     private func locationModeDescription(_ mode: ProviderLocationMode) -> String {
         switch mode {
         case .fixed:
@@ -265,38 +294,9 @@ struct ProviderRegistrationView: View {
                 Text(service.name)
                     .font(PitGoTypography.body)
                     .bold()
-                if content.draft.locationMode == .pittec {
-                    Text("Valor definido pela plataforma — sem cadastro de preço.")
-                        .font(PitGoTypography.caption)
-                        .foregroundStyle(tokens.textSecondary)
-                } else {
-                    labeledField("Preço (R$)", error: content.fieldErrors[.offer(localID: content.draft.offers.first?.id ?? UUID(), field: .price)]) {
-                        TextField(
-                            "",
-                            text: Binding(
-                                get: { content.draft.offers.first?.priceInput ?? "" },
-                                set: { text in
-                                    if let id = content.draft.offers.first?.id { viewModel.updateOfferPrice(id, value: text) }
-                                }
-                            )
-                        )
-                        .keyboardType(.decimalPad)
-                        .disabled(!content.isInputEnabled)
-                    }
-                    labeledField("Duração (minutos)", error: content.fieldErrors[.offer(localID: content.draft.offers.first?.id ?? UUID(), field: .duration)]) {
-                        TextField(
-                            "",
-                            text: Binding(
-                                get: { content.draft.offers.first?.durationInput ?? "" },
-                                set: { text in
-                                    if let id = content.draft.offers.first?.id { viewModel.updateOfferDuration(id, value: text) }
-                                }
-                            )
-                        )
-                        .keyboardType(.numberPad)
-                        .disabled(!content.isInputEnabled)
-                    }
-                }
+                Text("Tarifa e duração configuradas pela PitGo.")
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
             }
         }
     }
@@ -379,19 +379,9 @@ struct ProviderRegistrationView: View {
             .font(PitGoTypography.caption)
             .foregroundStyle(tokens.textSecondary)
 
-        verificationStatusView(content)
-
-        Button(action: { viewModel.verifyAddress() }) {
-            HStack {
-                if content.isVerifyingLocation {
-                    ProgressView()
-                }
-                Text("Verificar endereço")
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-        }
-        .disabled(!content.isInputEnabled)
+        Text("O endereço informado será validado automaticamente ao concluir o cadastro.")
+            .font(PitGoTypography.caption)
+            .foregroundStyle(tokens.textSecondary)
     }
 
     @ViewBuilder
@@ -493,44 +483,65 @@ struct ProviderRegistrationView: View {
                 Button("Tentar novamente") { viewModel.retryCategories() }
             }
         case let .content(categories):
+            primaryCategoryField(categories, content: content)
+
             if content.fieldErrors[.offersList] != nil {
                 Text("Adicione ao menos uma oferta.")
                     .font(PitGoTypography.caption)
                     .foregroundStyle(.red)
                     .accessibilityAddTraits(.updatesFrequently)
             }
-            ForEach(content.draft.offers) { offer in
-                offerRow(offer, categories: categories, content: content)
+            if content.draft.primaryCategoryID != nil {
+                ForEach(content.draft.offers) { offer in
+                    offerRow(offer, content: content)
+                }
+                Button(action: { viewModel.addOffer() }) {
+                    Label("Adicionar serviço", systemImage: "plus.circle")
+                }
+                .frame(minHeight: 44)
+                .disabled(!content.isInputEnabled)
             }
-            Button(action: { viewModel.addOffer() }) {
-                Label("Adicionar serviço", systemImage: "plus.circle")
+        }
+    }
+
+    /// `026` FR-001: categoria principal única do rascunho Fixo — trocar uma categoria com ofertas
+    /// já preenchidas pede confirmação (`content.pendingPrimaryCategoryChange`) antes de descartar a
+    /// seleção atual.
+    @ViewBuilder
+    private func primaryCategoryField(_ categories: [ServiceCategory], content: EditingContent) -> some View {
+        labeledField("Categoria principal", error: content.fieldErrors[.primaryCategory]) {
+            Picker(
+                "",
+                selection: Binding(
+                    get: { content.draft.primaryCategoryID },
+                    set: { viewModel.selectPrimaryCategory($0) }
+                )
+            ) {
+                Text("Selecione").tag(UUID?.none)
+                ForEach(categories) { category in
+                    Text(category.name).tag(UUID?.some(category.id))
+                }
             }
-            .frame(minHeight: 44)
+            .focused($focusedField, equals: .primaryCategory)
             .disabled(!content.isInputEnabled)
+        }
+        .confirmationDialog(
+            "Trocar a categoria principal descarta os serviços já selecionados. Continuar?",
+            isPresented: Binding(
+                get: { content.pendingPrimaryCategoryChange != nil },
+                set: { if !$0 { viewModel.cancelPrimaryCategoryChange() } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Trocar categoria", role: .destructive) { viewModel.confirmPrimaryCategoryChange() }
+            Button("Cancelar", role: .cancel) { viewModel.cancelPrimaryCategoryChange() }
         }
     }
 
     @ViewBuilder
-    private func offerRow(_ offer: OfferDraft, categories: [ServiceCategory], content: EditingContent) -> some View {
+    private func offerRow(_ offer: OfferDraft, content: EditingContent) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            labeledField("Categoria", error: content.fieldErrors[.offer(localID: offer.id, field: .category)]) {
-                Picker(
-                    "",
-                    selection: Binding(
-                        get: { offer.categoryID },
-                        set: { viewModel.updateOfferCategory(offer.id, categoryID: $0) }
-                    )
-                ) {
-                    Text("Selecione").tag(UUID?.none)
-                    ForEach(categories) { category in
-                        Text(category.name).tag(UUID?.some(category.id))
-                    }
-                }
-                .focused($focusedField, equals: .offer(localID: offer.id, field: .category))
-                .disabled(!content.isInputEnabled)
-            }
-
-            if let categoryID = offer.categoryID {
+            if let categoryID = content.draft.primaryCategoryID {
                 serviceField(offer, categoryID: categoryID, content: content)
             }
 
@@ -685,7 +696,7 @@ struct ProviderRegistrationView: View {
                     Text(summary.provider.email).font(PitGoTypography.caption)
                     Text(BrazilianTextFormatting.formatPhone(summary.provider.phone)).font(PitGoTypography.caption)
                     Text(maskedCNPJ(summary.provider.cnpj)).font(PitGoTypography.caption)
-                    Text(summary.provider.locationMode == .fixed ? "Modalidade: fixa" : "Modalidade: móvel")
+                    Text("Modalidade: \(summary.provider.providerKind?.title ?? (summary.provider.locationMode == .mobile ? "Guincho" : "Empresa"))")
                         .font(PitGoTypography.caption)
                 }
 
@@ -700,20 +711,25 @@ struct ProviderRegistrationView: View {
                 }
                 .font(PitGoTypography.caption)
 
+                if !summary.offers.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Serviços").font(PitGoTypography.categoryTitle).accessibilityAddTraits(.isHeader)
                     ForEach(Array(summary.offers.enumerated()), id: \.offset) { _, offer in
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\(offer.serviceName) · \(offer.categoryName)").font(PitGoTypography.body)
-                            Text(offer.isFree ? "Gratuito" : formattedPrice(offer.price))
-                                .font(PitGoTypography.caption)
-                            Text("\(offer.durationMinutes) min").font(PitGoTypography.caption)
+                            if summary.provider.providerKind == .pittec || summary.provider.providerKind == .guincho {
+                                Text("Tarifa e duração definidas pela PitGo").font(PitGoTypography.caption)
+                            } else {
+                                Text(offer.isFree ? "Gratuito" : formattedPrice(offer.price)).font(PitGoTypography.caption)
+                                Text("\(offer.durationMinutes) min").font(PitGoTypography.caption)
+                            }
                             if let description = offer.description, !description.isEmpty {
                                 Text(description).font(PitGoTypography.caption).foregroundStyle(tokens.textSecondary)
                             }
                         }
                         .padding(.vertical, 4)
                     }
+                }
                 }
 
                 Button(action: onFinished) {
@@ -773,7 +789,7 @@ struct ProviderRegistrationView: View {
         case .invalidFormat: "Verifique o formato informado."
         case .outOfRange: "Valor fora do intervalo permitido."
         case .unavailable: "Este valor não está disponível."
-        case .duplicate: "Este serviço já foi adicionado a outra oferta."
+        case .duplicate: "Este dado já está cadastrado."
         case .notFound: "CEP não encontrado. Verifique o número informado."
         }
     }

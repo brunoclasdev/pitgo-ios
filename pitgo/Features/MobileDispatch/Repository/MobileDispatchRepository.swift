@@ -48,6 +48,10 @@ enum DiscoveryPublishOutcome {
     case failure(MobileDispatchFailureReason)
 }
 
+private struct GuinchoAppointmentSnapshotParams: Encodable {
+    let p_appointment_id: UUID
+}
+
 final class MobileDispatchRepository {
     private let client: SupabaseClient
 
@@ -77,6 +81,10 @@ final class MobileDispatchRepository {
     /// alias exato desta função, confirmado via `pg_get_functiondef`).
     func getActiveDispatch() async -> MobileDispatchOperationResult {
         await callNoParams("get_my_active_mobile_dispatch")
+    }
+
+    func getGuinchoSnapshot(appointmentID: UUID) async -> MobileDispatchOperationResult {
+        await call("get_guincho_appointment_snapshot", params: GuinchoAppointmentSnapshotParams(p_appointment_id: appointmentID))
     }
 
     func nextCandidate(searchID: UUID, expectedRevision: Int64) async -> MobileDispatchOperationResult {
@@ -112,6 +120,41 @@ final class MobileDispatchRepository {
             p_appointment_id: appointmentID,
             p_reason: reason,
             p_expected_revision: expectedRevision
+        ))
+    }
+
+    // MARK: - `028` — Guincho pós-aceite (chegada, início, conclusão, contestação)
+
+    func startGuinchoTransport(appointmentID: UUID, expectedRevision: Int64) async -> MobileDispatchOperationResult {
+        await call("start_guincho_transport", params: StartGuinchoTransportParams(
+            p_appointment_id: appointmentID,
+            p_expected_revision: expectedRevision,
+            p_operation_id: UUID()
+        ))
+    }
+
+    func arriveGuincho(appointmentID: UUID, expectedRevision: Int64) async -> MobileDispatchOperationResult {
+        await call("arrive_guincho_appointment", params: ArriveGuinchoAppointmentParams(
+            p_operation_id: UUID(),
+            p_appointment_id: appointmentID,
+            p_expected_revision: expectedRevision
+        ))
+    }
+
+    /// Cliente confirma a conclusão solicitada pelo guincheiro — mesma RPC do PitTec
+    /// (`confirm_pittec_completion`), nome compartilhado apesar de servir os dois.
+    func confirmCompletion(appointmentID: UUID, expectedRevision: Int64) async -> MobileDispatchOperationResult {
+        await call("confirm_pittec_completion", params: AppointmentRevisionParams(p_appointment_id: appointmentID, p_expected_revision: expectedRevision))
+    }
+
+    func disputeCompletion(appointmentID: UUID, expectedRevision: Int64, reason: String) async -> MobileDispatchOperationResult {
+        let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (1 ... 1000).contains(trimmed.count) else { return .failure(.contract) }
+        return await call("dispute_guincho_completion", params: DisputeGuinchoCompletionParams(
+            p_appointment_id: appointmentID,
+            p_expected_revision: expectedRevision,
+            p_operation_id: UUID(),
+            p_reason: trimmed
         ))
     }
 
@@ -240,7 +283,8 @@ final class MobileDispatchRepository {
 
     private func interpret(_ result: DispatchFlowResult) -> MobileDispatchOperationResult {
         switch result.outcome {
-        case .snapshot, .staleRevision, .candidateInvalidated, .revisionConflict, .active:
+        case .snapshot, .staleRevision, .candidateInvalidated, .revisionConflict, .active,
+             .created, .existing, .applied, .accepted, .completed, .disputed, .cancelled:
             guard let snapshot = result.snapshot else { return .failure(.contract) }
             return .snapshot(snapshot)
         case .none, .offerExpired, .declined:

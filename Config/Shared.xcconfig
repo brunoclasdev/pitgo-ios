@@ -2,19 +2,25 @@
 //  Shared.xcconfig
 //  pitgo
 //
-//  xcconfig base do projeto (rastreado). Inclui Secrets.xcconfig (local, não rastreado — ver
-//  .gitignore) quando existir; o `?` evita falha em um clone novo sem o arquivo. Ausência de
-//  qualquer um dos dois valores abaixo é tratada como valor ausente pelo Run Script Build Phase
+//  xcconfig base do projeto (rastreado), comum aos três ambientes (`027`: Dev/Homol/Prod — ver
+//  Dev.xcconfig/Homol.xcconfig/Prod.xcconfig). Cada um desses três arquivos inclui este aqui
+//  PRIMEIRO e só depois inclui seu próprio arquivo de secrets local (não rastreado — ver
+//  .gitignore); o `?` do include evita falha em um clone novo sem o arquivo de secrets. Ausência de
+//  qualquer um dos valores abaixo é tratada como valor ausente pelo Run Script Build Phase
 //  (contracts/supabase-configuration.md) — não há fallback silencioso.
 //
 //  IMPORTANTE: em .xcconfig, atribuições posteriores sobrescrevem as anteriores para a mesma
 //  chave, na ordem em que o arquivo é processado (um `#include` insere o conteúdo exatamente no
-//  ponto onde aparece). Por isso os defaults vazios abaixo vêm ANTES do `#include?` — assim, se
-//  Secrets.xcconfig existir e definir os valores, eles prevalecem; se não existir, os defaults
-//  vazios permanecem e o Run Script falha corretamente por ausência.
+//  ponto onde aparece). Por isso os defaults vazios abaixo existem só para o caso de o arquivo de
+//  secrets do ambiente ativo não existir — o Run Script falha corretamente por ausência em vez de
+//  usar um valor inventado.
 //
 supabaseUrl =
 supabaseKey =
+//  `supabaseProjectRef` (`027`): referência curta do projeto (ex.: "eetbrkznuqbdrnybnyhf"), usada só
+//  para verificar que `supabaseUrl` aponta para o projeto esperado do ambiente (ver
+//  Scripts/validate-supabase-config.sh) e para o fingerprint de `EnvironmentConfig`. Não é segredo.
+supabaseProjectRef =
 
 //  `mapStyleUrl` (009): Style JSON do MapLibre Native — nenhuma chave de SDK de mapa proprietário
 //  (FR-036). Tem um default público de avaliação (não é infraestrutura de produção — ver
@@ -34,5 +40,3 @@ mapStyleAttributionUrl = https:/$()/www.openstreetmap.org/copyright
 //  falharia de forma confusa dentro do SDK nativo, então o app trata a ausência como "formas de
 //  pagamento por cartão indisponíveis" em vez de simular um valor (ver ManagedMercadoPagoConfiguration).
 mercadoPagoPublicKey =
-
-#include? "Secrets.xcconfig"

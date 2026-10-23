@@ -81,6 +81,10 @@ Secrets.plist
 *.xcconfig.local
 Config/Local.xcconfig
 Config/Secrets.xcconfig
+# `027`: um arquivo de secrets por ambiente — Dev usa backend próprio; Homol inclui Prod.secrets.xcconfig
+# diretamente (mesmo backend), então não existe Homol.secrets.xcconfig.
+Config/Dev.secrets.xcconfig
+Config/Prod.secrets.xcconfig
 .env
 .env.local
 .env.*.local

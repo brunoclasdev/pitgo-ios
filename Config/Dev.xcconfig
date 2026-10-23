@@ -1,0 +1,16 @@
+//
+//  Dev.xcconfig
+//  pitgo
+//
+//  `027`: ambiente Dev — backend próprio (separado de Homol/Prod) e pagamento SEMPRE simulado,
+//  nunca integrado ao Mercado Pago (ver SimulatedPaymentGateway/ManagedMercadoPagoConfiguration).
+//  `mercadoPagoPublicKey` é forçado vazio no fim deste arquivo, mesmo que Dev.secrets.xcconfig
+//  defina um valor por engano — nenhuma versão Dev pode embutir uma chave real.
+//
+ENVIRONMENT_ID = DEV
+
+#include "Shared.xcconfig"
+#include? "Dev.secrets.xcconfig"
+
+// Nunca remova esta linha nem a mova para antes do include acima — ela DEVE vencer por último.
+mercadoPagoPublicKey =

@@ -21,12 +21,22 @@ final class ProviderDashboardViewModel: ObservableObject {
     /// Chamada PitTec (pendente OU já reservada) detectada para este provider — `015`. Uma única
     /// rota (`PitTecIncomingRequestView`) trata os dois casos internamente, então basta um sinal.
     @Published private(set) var pitTecAppointmentToOpen: UUID?
+    /// `029`: pedido Guincho pago apresentado sobre a tela atual, sem trocar a rota.
+    @Published private(set) var guinchoIncomingSnapshot: MobileDispatchSnapshot?
+    @Published private(set) var isRespondingToGuincho = false
+    @Published private(set) var guinchoResponseFailure: String?
+    @Published private(set) var homeLocationFix: DeviceLocationFix?
+    @Published private(set) var isLocatingHome = false
+    @Published private(set) var homeLocationUnavailable = false
+    @Published private(set) var locationFailureState: HomeLocationFailureState?
 
     let discoveryTracker: ProviderDiscoveryTracker
 
     private let repository: ProviderDashboardRepository
     private let dispatchRepository: MobileDispatchRepository
     private let pitTecRepository: PitTecRepository
+    private let locationRepository: DeviceLocationRepository
+    private let guinchoAlertNotifier = GuinchoIncomingAlertNotifier()
     private let accountID: UUID
     private var settingsTask: Task<Void, Never>?
     private var isObservingIncoming = false
@@ -57,11 +67,19 @@ final class ProviderDashboardViewModel: ObservableObject {
         self.repository = repository
         self.dispatchRepository = dispatchRepository
         self.pitTecRepository = pitTecRepository
+        self.locationRepository = locationRepository
         accountID = snapshot.accountID
         state = .content(snapshot)
         discoveryTracker = ProviderDiscoveryTracker(locationRepository: locationRepository, dispatchRepository: dispatchRepository)
         discoveryTracker.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        discoveryTracker.$lastFix
+            .dropFirst()
+            .sink { [weak self] fix in
+                guard fix != nil else { return }
+                Task { @MainActor in await self?.checkIncoming() }
+            }
             .store(in: &cancellables)
     }
 
@@ -69,6 +87,9 @@ final class ProviderDashboardViewModel: ObservableObject {
     /// observar solicitações pendentes destinadas a este provider.
     func onAppear() {
         syncTracker()
+        if currentSnapshot?.provider.locationMode == .mobile {
+            locateHomeIfNeeded()
+        }
         guard !isObservingIncoming else { return }
         isObservingIncoming = true
         Task { [weak self] in
@@ -78,6 +99,56 @@ final class ProviderDashboardViewModel: ObservableObject {
             subscribeToIncomingInBackground()
             startPolling()
         }
+    }
+
+    func locateHomeIfNeeded() {
+        guard !isLocatingHome, homeLocationFix == nil, discoveryTracker.lastFix == nil else { return }
+        locateHome()
+    }
+
+    func locateHome() {
+        guard !isLocatingHome else { return }
+        switch locationRepository.authorizationStatus {
+        case .denied, .restricted:
+            locationFailureState = .permissionDenied
+            homeLocationUnavailable = true
+            return
+        case .notDetermined:
+            locationRepository.requestWhenInUseAuthorization()
+        case .authorizedWhenInUse, .authorizedAlways:
+            break
+        }
+        guard DeviceLocationServiceStatus.isEnabled else {
+            locationFailureState = .locationServicesDisabled
+            homeLocationUnavailable = true
+            return
+        }
+        isLocatingHome = true
+        Task { [weak self] in
+            guard let self else { return }
+            switch await locationRepository.requestOneShotFix(timeout: 10) {
+            case let .success(fix):
+                homeLocationFix = fix
+                homeLocationUnavailable = false
+                locationFailureState = nil
+            case .permissionDenied:
+                locationFailureState = .permissionDenied
+                homeLocationUnavailable = true
+            case .serviceDisabled:
+                locationFailureState = .locationServicesDisabled
+                homeLocationUnavailable = true
+            case .timeout, .failure:
+                locationFailureState = .unavailable
+                homeLocationUnavailable = true
+            }
+            isLocatingHome = false
+        }
+    }
+
+    var currentHomeFix: DeviceLocationFix? {
+        [discoveryTracker.lastFix, homeLocationFix]
+            .compactMap { $0 }
+            .max { $0.timestamp < $1.timestamp }
     }
 
     /// Roda à parte do resto de `onAppear` — mesmo achado de `PitTecClientViewModel.
@@ -123,6 +194,7 @@ final class ProviderDashboardViewModel: ObservableObject {
     func tearDown() {
         stopPolling()
         discoveryTracker.stop()
+        Task { await guinchoAlertNotifier.removeVisibleNotifications(providerID: accountIDForTopic) }
         dispatchRepository.disconnectAll()
         pitTecRepository.disconnectAll()
         isObservingIncoming = false
@@ -155,6 +227,36 @@ final class ProviderDashboardViewModel: ObservableObject {
         switch await dispatchRepository.getActiveDispatch() {
         case let .snapshot(snapshot):
             guard let appointment = snapshot.appointment else { return }
+            // `028`: Guincho fica inteiramente em `ProviderIncomingRequestView` (ver
+            // `guinchoReservedState`) — nunca em `ProviderTrackingView` (publicação de localização
+            // do guincho móvel clássico, fora do escopo deste porte).
+            if snapshot.dispatchKind == .guinchoDirect {
+                switch appointment.status {
+                case .pending where appointment.appointmentID != dismissedIncomingID:
+                    // `get_my_active_mobile_dispatch` só retorna a oferta operacional após o
+                    // pagamento. Mantemos a tela atual e mostramos um único card global.
+                    guinchoIncomingSnapshot = snapshot
+                    incomingAppointmentID = nil
+                    await guinchoAlertNotifier.notifyIfNeeded(
+                        providerID: accountIDForTopic,
+                        appointmentID: appointment.appointmentID,
+                        deadline: appointment.responseDeadline
+                    )
+                case .accepted where appointment.appointmentID != dismissedIncomingID,
+                     .inProgress where appointment.appointmentID != dismissedIncomingID,
+                     .awaitingClientCompletionConfirmation where appointment.appointmentID != dismissedIncomingID,
+                     .disputed where appointment.appointmentID != dismissedIncomingID:
+                    guinchoIncomingSnapshot = nil
+                    await guinchoAlertNotifier.clear(providerID: accountIDForTopic, appointmentID: appointment.appointmentID)
+                    incomingAppointmentID = appointment.appointmentID
+                default:
+                    guinchoIncomingSnapshot = nil
+                    await guinchoAlertNotifier.clear(providerID: accountIDForTopic, appointmentID: appointment.appointmentID)
+                    break
+                }
+                return
+            }
+            guinchoIncomingSnapshot = nil
             switch appointment.status {
             case .pending where appointment.appointmentID != dismissedIncomingID:
                 incomingAppointmentID = appointment.appointmentID
@@ -165,8 +267,42 @@ final class ProviderDashboardViewModel: ObservableObject {
             default:
                 break
             }
-        case .noActiveFlow, .failure:
+        case .noActiveFlow:
+            guinchoIncomingSnapshot = nil
             break
+        case .failure:
+            // Uma falha transitória de rede não invalida a última oferta autorizada; a resposta
+            // ainda será revalidada pelo servidor ao tocar em uma ação.
+            break
+        }
+    }
+
+    func respondToGuincho(accept: Bool) {
+        guard !isRespondingToGuincho,
+              let snapshot = guinchoIncomingSnapshot,
+              let appointment = snapshot.appointment,
+              snapshot.dispatchKind == .guinchoDirect,
+              appointment.status == .pending,
+              snapshot.allowedActions.contains(accept ? .accept : .decline) else { return }
+        isRespondingToGuincho = true
+        guinchoResponseFailure = nil
+        Task { [weak self] in
+            guard let self else { return }
+            switch await dispatchRepository.respond(
+                appointmentID: appointment.appointmentID,
+                accept: accept,
+                expectedRevision: appointment.revision
+            ) {
+            case .snapshot, .noActiveFlow:
+                guinchoIncomingSnapshot = nil
+                await guinchoAlertNotifier.clear(providerID: accountIDForTopic, appointmentID: appointment.appointmentID)
+                if !accept { dismissedIncomingID = appointment.appointmentID }
+                await checkIncoming()
+            case .failure:
+                guinchoResponseFailure = "Não foi possível responder. Confira sua conexão e tente novamente."
+                await checkIncoming()
+            }
+            isRespondingToGuincho = false
         }
     }
 
@@ -228,6 +364,9 @@ final class ProviderDashboardViewModel: ObservableObject {
         let locationMode = snapshot.provider.locationMode
         settingsTask = Task { [weak self] in
             guard let self else { return }
+            if available, locationMode == .mobile {
+                await guinchoAlertNotifier.requestPermission()
+            }
             let result = await repository.updateSettings(available: available, locationMode: locationMode)
             if Task.isCancelled { return }
             apply(result)
@@ -270,4 +409,10 @@ final class ProviderDashboardViewModel: ObservableObject {
             legacyMigrationAvailable: current.legacyMigrationAvailable
         )
     }
+}
+
+enum HomeLocationFailureState {
+    case permissionDenied
+    case locationServicesDisabled
+    case unavailable
 }

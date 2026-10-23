@@ -21,12 +21,34 @@ enum ProviderRegistrationValidation {
         var errors: [ProviderField: ProviderFieldError] = [:]
         let company = validateCompany(draft.company, into: &errors)
         let address = validateAddress(draft.address, into: &errors)
-        let offers = validateOffers(draft.offers, into: &errors)
+        // `026` FR-001: só o prestador Fixo escolhe categoria principal — Móvel/PitTec recebem o
+        // serviço implícito e nunca passam por aqui.
+        if draft.providerKind != .store, draft.locationMode == .fixed, draft.primaryCategoryID == nil {
+            errors[.primaryCategory] = .required
+        }
+        let offers = draft.providerKind == .store ? [] : validateOffers(draft.offers, providerKind: draft.providerKind, into: &errors)
+        var vehicle: NormalizedProviderVehicle?
+        if draft.providerKind == .guincho {
+            let plate = draft.vehiclePlate.uppercased().filter { $0.isLetter || $0.isNumber }
+            let make = BrazilianInputValidation.trim(draft.vehicleMake)
+            let model = BrazilianInputValidation.trim(draft.vehicleModel)
+            let color = BrazilianInputValidation.trim(draft.vehicleColor)
+            if plate.range(of: "^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$", options: .regularExpression) == nil { errors[.vehicle(.plate)] = .invalidFormat }
+            if make.isEmpty { errors[.vehicle(.make)] = .required }
+            if model.isEmpty { errors[.vehicle(.model)] = .required }
+            if color.isEmpty { errors[.vehicle(.color)] = .required }
+            if errors[.vehicle(.plate)] == nil && errors[.vehicle(.make)] == nil && errors[.vehicle(.model)] == nil && errors[.vehicle(.color)] == nil {
+                vehicle = NormalizedProviderVehicle(plate: plate, make: make, model: model, color: color)
+            }
+        }
 
-        guard let company, let address, let offers else {
+        guard let company, let address, let offers,
+              !(draft.providerKind != .store && draft.locationMode == .fixed && draft.primaryCategoryID == nil),
+              (draft.providerKind != .guincho || vehicle != nil),
+              errors.isEmpty else {
             return (nil, errors)
         }
-        return (ProviderRegistrationCommand(company: company, address: address, locationMode: draft.locationMode, offers: offers), errors)
+        return (ProviderRegistrationCommand(company: company, address: address, providerKind: draft.providerKind, vehicle: vehicle, locationMode: draft.locationMode, offers: offers), errors)
     }
 
     /// Valida os campos de endereço antes de disparar `geocode-provider-address` — usada pelo botão
@@ -50,10 +72,15 @@ enum ProviderRegistrationValidation {
             return .address(field)
         }
 
+        for field in [ProviderVehicleField.plate, .make, .model, .color] where errors[.vehicle(field)] != nil {
+            return .vehicle(field)
+        }
+
         if errors[.locationMode] != nil { return .locationMode }
+        if errors[.primaryCategory] != nil { return .primaryCategory }
         if errors[.offersList] != nil { return .offersList }
 
-        let offerFieldOrder: [OfferField] = [.category, .service, .price, .duration, .description]
+        let offerFieldOrder: [OfferField] = [.service, .price, .duration, .description]
         for localID in offerOrder {
             for field in offerFieldOrder {
                 let key = ProviderField.offer(localID: localID, field: field)
@@ -174,7 +201,14 @@ enum ProviderRegistrationValidation {
 
     // MARK: - Ofertas
 
-    private static func validateOffers(_ offers: [OfferDraft], into errors: inout [ProviderField: ProviderFieldError]) -> [NormalizedOffer]? {
+    private static func validateOffers(_ offers: [OfferDraft], providerKind: ProviderKind, into errors: inout [ProviderField: ProviderFieldError]) -> [NormalizedOffer]? {
+        if providerKind == .guincho || providerKind == .pittec {
+            guard let serviceID = offers.first?.serviceID else {
+                errors[.offersList] = .required
+                return nil
+            }
+            return [NormalizedOffer(serviceID: serviceID, price: 0, durationMinutes: 60, description: nil, isFree: true)]
+        }
         guard !offers.isEmpty else {
             errors[.offersList] = .required
             return nil
@@ -185,11 +219,6 @@ enum ProviderRegistrationValidation {
         var seenServiceIDs: Set<UUID> = []
 
         for offer in offers {
-            if offer.categoryID == nil {
-                errors[.offer(localID: offer.id, field: .category)] = .required
-                isValid = false
-            }
-
             var resolvedServiceID: UUID?
             if let serviceID = offer.serviceID {
                 if seenServiceIDs.contains(serviceID) {

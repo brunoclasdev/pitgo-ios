@@ -34,10 +34,10 @@ struct AddressDraft: Equatable {
 }
 
 /// `id` é um localID estável apenas para UI/erro/foco — nunca reindexado, mesmo após remoção de
-/// outra oferta.
+/// outra oferta. `026`: a categoria deixou de pertencer à oferta — agora é única por rascunho
+/// (`ProviderRegistrationDraft.primaryCategoryID`), compartilhada por todas as ofertas Fixo.
 struct OfferDraft: Identifiable {
     let id = UUID()
-    var categoryID: UUID?
     var serviceID: UUID?
     var isFree: Bool = false
     var priceInput: String = ""
@@ -48,7 +48,15 @@ struct OfferDraft: Identifiable {
 struct ProviderRegistrationDraft {
     var company: CompanyDraft
     var address = AddressDraft()
+    var providerKind: ProviderKind = .guincho
+    var vehiclePlate = ""
+    var vehicleMake = ""
+    var vehicleModel = ""
+    var vehicleColor = ""
     var locationMode: ProviderLocationMode = .fixed
+    /// `026` FR-001: categoria principal única do prestador Fixo; todas as ofertas pertencem a ela.
+    /// `nil` para Móvel/PitTec (não escolhem categoria).
+    var primaryCategoryID: UUID?
     var offers: [OfferDraft] = [OfferDraft()]
 
     /// `true` quando algum campo não sensível já foi preenchido — usado para exigir confirmação de
@@ -57,7 +65,19 @@ struct ProviderRegistrationDraft {
         !company.name.trimmingCharacters(in: .whitespaces).isEmpty
             || !company.cnpj.isEmpty
             || !address.street.trimmingCharacters(in: .whitespaces).isEmpty
+            || primaryCategoryID != nil
             || offers.contains { $0.serviceID != nil || !$0.priceInput.isEmpty }
+    }
+
+    /// `026`: ofertas com algum dado preenchido — usado para exigir confirmação antes de trocar a
+    /// categoria principal e descartar a seleção atual.
+    var offersHaveMeaningfulContent: Bool {
+        offers.contains {
+            $0.serviceID != nil
+                || !$0.priceInput.trimmingCharacters(in: .whitespaces).isEmpty
+                || !$0.durationInput.trimmingCharacters(in: .whitespaces).isEmpty
+                || !$0.description.trimmingCharacters(in: .whitespaces).isEmpty
+        }
     }
 }
 
@@ -134,8 +154,10 @@ enum ProviderAddressField: Hashable, CaseIterable {
 }
 
 enum OfferField: Hashable, CaseIterable {
-    case category, service, price, duration, description
+    case service, price, duration, description
 }
+
+enum ProviderVehicleField: Hashable { case plate, make, model, color }
 
 /// Identificado por `localID` (nunca por índice) para que remoção/reordenação não mova erro/foco
 /// para outra oferta.
@@ -143,6 +165,9 @@ enum ProviderField: Hashable {
     case company(ProviderCompanyField)
     case address(ProviderAddressField)
     case locationMode
+    case vehicle(ProviderVehicleField)
+    /// `026`: categoria única do rascunho Fixo — substitui o antigo `.offer(_, field: .category)`.
+    case primaryCategory
     case offersList
     case offer(localID: UUID, field: OfferField)
 }
@@ -196,8 +221,17 @@ struct NormalizedOffer {
 struct ProviderRegistrationCommand {
     let company: NormalizedCompany
     let address: NormalizedAddress
+    let providerKind: ProviderKind
+    let vehicle: NormalizedProviderVehicle?
     let locationMode: ProviderLocationMode
     let offers: [NormalizedOffer]
+}
+
+struct NormalizedProviderVehicle {
+    let plate: String
+    let make: String
+    let model: String
+    let color: String
 }
 
 // MARK: - Resumo (apresentação — nenhum ID interno; CNPJ mascarado pela View)
@@ -307,6 +341,13 @@ enum EditingSubmission: Equatable {
     case failure(reason: ProviderFailureReason)
 }
 
+/// `026`: troca de categoria principal pendente de confirmação — a troca só é aplicada (e as ofertas
+/// descartadas) depois que o prestador confirma, nunca de forma silenciosa (contracts/
+/// provider-service-selection.md "Troca de categoria e compatibilidade").
+struct PendingPrimaryCategoryChange: Equatable {
+    let newCategoryID: UUID?
+}
+
 struct EditingContent {
     var draft: ProviderRegistrationDraft
     var categories: LoadState<[ServiceCategory]> = .loading
@@ -317,6 +358,7 @@ struct EditingContent {
     var submission: EditingSubmission = .idle
     var postalCodeLookup: PostalCodeLookupState = .idle
     var cepAutofillProvenance: CepAutofillProvenance?
+    var pendingPrimaryCategoryChange: PendingPrimaryCategoryChange?
     /// `nil` para modalidade Fixo (nenhuma resolução acontece); para Móvel/PitTec, reflete a busca
     /// do serviço único daquele `dispatchKind` (`016`) — `.loading` desabilita o envio.
     var implicitService: LoadState<CatalogService>?
@@ -338,11 +380,11 @@ struct EditingContent {
 
     /// Móvel/PitTec (`016`) não exibem categoria/serviço/preço/duração — o serviço único da
     /// modalidade é resolvido e anexado automaticamente.
-    var showsOffersSection: Bool { draft.locationMode == .fixed }
+    var showsOffersSection: Bool { draft.locationMode == .fixed && draft.providerKind != .store }
 
     /// Móvel só pede preço/duração (serviço já resolvido); PitTec não pede nada (preço/duração
     /// internos, sem significado de cobrança).
-    var showsMobilePriceFields: Bool { draft.locationMode == .mobile }
+    var showsMobilePriceFields: Bool { draft.providerKind == .guincho }
 
     /// A partir desta sessão, não exige mais `addressVerification.isUsableForSubmit` — no Android
     /// (mesmo backend, `ProviderRegistrationViewModel.proceedWithValidation`/`geocodeAndSubmit`) o

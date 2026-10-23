@@ -35,6 +35,17 @@ open -a Simulator
 
 ## Manual scenarios
 
+### Category then service (catálogo ativo, alinhado ao Android `e637ea6`)
+
+1. Com o catálogo de desenvolvimento carregado, confirme que a Home mostra uma entrada para cada
+   categoria, mesmo quando a categoria contém vários serviços.
+2. Toque numa categoria e confirme que a lista mostra todos os serviços dela, em ordem alfabética,
+   sem opções de outra categoria.
+3. Escolha serviços de modalidades diferentes e confirme que cada um abre o fluxo correto, usando
+   o UUID selecionado (mapa, Guincho ou PitTec).
+4. Confirme que nenhum cartão ou serviço está marcado como "Em manutenção" ou desabilitado por essa
+   condição.
+
 ### 1. Offline catalog
 
 1. No simulador, ative o modo avião (ou desligue a rede do Mac, se testando em dispositivo físico).

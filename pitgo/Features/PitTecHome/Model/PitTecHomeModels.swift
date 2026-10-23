@@ -45,6 +45,8 @@ enum PitTecHomeUiState {
 struct PitTecPricingInfo: Equatable {
     let price: Decimal
     let serviceName: String
+    let durationMinutes: Int?
+    let version: Int64?
 }
 
 enum PitTecPricingLoadState: Equatable {

@@ -45,6 +45,7 @@ final class PaymentRepository {
     func createPayment(
         requestID: UUID,
         dispatchKind: PaymentDispatchKind,
+        serviceID: UUID,
         amount: Decimal,
         method: PaymentMethodKind,
         savedCardID: UUID? = nil,
@@ -55,9 +56,11 @@ final class PaymentRepository {
         let body = CreatePaymentRequestBody(
             request_id: requestID,
             dispatch_kind: dispatchKind.rawValue,
+            service_id: serviceID,
+            checkout_environment: EnvironmentConfig.current.id.rawValue.lowercased(),
             // Android omits `amount` for PitTec for the same reason: the server owns the
             // frozen test amount and must not compare it with the provider quote.
-            amount: dispatchKind == .pittecAutoSequential ? nil : amount,
+            amount: dispatchKind == .pittecAutoSequential && EnvironmentConfig.current.id != .homol ? nil : amount,
             method: method.rawValue,
             saved_card_id: savedCardID,
             card_security_code_token: cardSecurityCodeToken,
@@ -77,7 +80,7 @@ final class PaymentRepository {
             )
             return .created(result)
         } catch {
-            Self.logger.error("Falha ao consultar status do pagamento: \(String(describing: error), privacy: .public)")
+            Self.logger.error("Falha ao criar pagamento: \(String(describing: error), privacy: .public)")
             return .failure(classify(error))
         }
     }

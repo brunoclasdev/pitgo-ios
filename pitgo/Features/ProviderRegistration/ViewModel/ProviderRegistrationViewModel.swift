@@ -19,6 +19,7 @@ final class ProviderRegistrationViewModel: ObservableObject {
     private let postalCodeLookupRepository: ViaCepAddressLookupRepository
     private let accountID: UUID
     private let authEmail: String
+    private let providerKind: ProviderKind
     private var focusRequestID = 0
     private var submissionTask: Task<Void, Never>?
     private var verificationTask: Task<Void, Never>?
@@ -30,12 +31,14 @@ final class ProviderRegistrationViewModel: ObservableObject {
         verificationRepository: ProviderAddressVerificationRepository,
         accountID: UUID,
         authEmail: String,
+        providerKind: ProviderKind,
         postalCodeLookupRepository: ViaCepAddressLookupRepository = ViaCepAddressLookupRepository()
     ) {
         self.repository = repository
         self.verificationRepository = verificationRepository
         self.accountID = accountID
         self.authEmail = authEmail
+        self.providerKind = providerKind
         self.postalCodeLookupRepository = postalCodeLookupRepository
     }
 
@@ -49,8 +52,21 @@ final class ProviderRegistrationViewModel: ObservableObject {
             case let .complete(summary):
                 state = .alreadyRegistered(summary)
             case .none:
-                state = .editing(EditingContent(draft: ProviderRegistrationDraft(company: CompanyDraft(email: authEmail))))
+                var draft = ProviderRegistrationDraft(company: CompanyDraft(email: authEmail))
+                draft.providerKind = providerKind
+                draft.locationMode = providerKind.locationMode
+                if providerKind == .store {
+                    draft.offers = []
+                } else if providerKind == .pittec || providerKind == .guincho {
+                    var offer = OfferDraft()
+                    offer.isFree = true
+                    offer.priceInput = "0"
+                    offer.durationInput = "60"
+                    draft.offers = [offer]
+                }
+                state = .editing(EditingContent(draft: draft))
                 await loadCategories()
+                if providerKind != .store { resolveImplicitService(for: providerKind.locationMode) }
             case .inconsistent:
                 state = .startupFailure(reason: .unknown)
             case .failure:
@@ -118,6 +134,11 @@ final class ProviderRegistrationViewModel: ObservableObject {
         }
     }
 
+    func updateVehiclePlate(_ value: String) { updateEditing { $0.draft.vehiclePlate = String(value.uppercased().filter { $0.isLetter || $0.isNumber }.prefix(7)); $0.fieldErrors[.vehicle(.plate)] = nil } }
+    func updateVehicleMake(_ value: String) { updateEditing { $0.draft.vehicleMake = value; $0.fieldErrors[.vehicle(.make)] = nil } }
+    func updateVehicleModel(_ value: String) { updateEditing { $0.draft.vehicleModel = value; $0.fieldErrors[.vehicle(.model)] = nil } }
+    func updateVehicleColor(_ value: String) { updateEditing { $0.draft.vehicleColor = value; $0.fieldErrors[.vehicle(.color)] = nil } }
+
     /// Móvel/PitTec (`016`) não escolhem serviço: a modalidade tem exatamente um serviço implícito
     /// no catálogo (Guincho/PitTec), resolvido aqui e anexado como a única oferta do rascunho. Cada
     /// troca de modalidade substitui `offers` do zero — nunca mescla com o que valia para outra.
@@ -131,6 +152,10 @@ final class ProviderRegistrationViewModel: ObservableObject {
                 }
             }
             content.fieldErrors[.offersList] = nil
+
+            content.fieldErrors[.primaryCategory] = nil
+            content.pendingPrimaryCategoryChange = nil
+            content.draft.primaryCategoryID = nil
 
             switch mode {
             case .fixed:
@@ -169,7 +194,6 @@ final class ProviderRegistrationViewModel: ObservableObject {
                 updateEditing { editing in
                     editing.implicitService = .content(service)
                     guard var offer = editing.draft.offers.first else { return }
-                    offer.categoryID = service.categoryID
                     offer.serviceID = service.id
                     editing.draft.offers = [offer]
                 }
@@ -408,13 +432,41 @@ final class ProviderRegistrationViewModel: ObservableObject {
         }
     }
 
-    func updateOfferCategory(_ id: UUID, categoryID: UUID?) {
+    /// `026` FR-001: categoria principal única do rascunho Fixo. Trocar uma categoria que já tem
+    /// ofertas com dado preenchido exige confirmação explícita (contracts/provider-service-selection
+    /// .md "Troca de categoria e compatibilidade") — a troca em si só é aplicada por
+    /// `confirmPrimaryCategoryChange()`.
+    func selectPrimaryCategory(_ categoryID: UUID?) {
+        guard case let .editing(content) = state, categoryID != content.draft.primaryCategoryID else { return }
+        if content.draft.offersHaveMeaningfulContent {
+            updateEditing { $0.pendingPrimaryCategoryChange = PendingPrimaryCategoryChange(newCategoryID: categoryID) }
+        } else {
+            applyPrimaryCategoryChange(categoryID)
+        }
+    }
+
+    func confirmPrimaryCategoryChange() {
+        guard case let .editing(content) = state, let pending = content.pendingPrimaryCategoryChange else { return }
+        applyPrimaryCategoryChange(pending.newCategoryID)
+    }
+
+    /// Cancelar a confirmação conserva o rascunho — a categoria e as ofertas atuais não são tocadas.
+    func cancelPrimaryCategoryChange() {
+        updateEditing { $0.pendingPrimaryCategoryChange = nil }
+    }
+
+    private func applyPrimaryCategoryChange(_ categoryID: UUID?) {
         updateEditing { content in
-            guard let index = content.draft.offers.firstIndex(where: { $0.id == id }) else { return }
-            content.draft.offers[index].categoryID = categoryID
-            content.draft.offers[index].serviceID = nil
-            content.fieldErrors[.offer(localID: id, field: .category)] = nil
-            content.fieldErrors[.offer(localID: id, field: .service)] = nil
+            content.draft.primaryCategoryID = categoryID
+            content.draft.offers = [OfferDraft()]
+            content.pendingPrimaryCategoryChange = nil
+            content.fieldErrors[.primaryCategory] = nil
+            content.fieldErrors[.offersList] = nil
+            for field in OfferField.allCases {
+                for offer in content.draft.offers {
+                    content.fieldErrors[.offer(localID: offer.id, field: field)] = nil
+                }
+            }
         }
 
         guard let categoryID, needsServiceLoad(for: categoryID) else { return }
@@ -422,6 +474,8 @@ final class ProviderRegistrationViewModel: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             let result = await repository.fetchServices(categoryID: categoryID)
+            // `026`: respostas de carregamento são armazenadas pela categoria solicitada e não
+            // mudam a categoria atualmente selecionada — guarda contra troca enquanto a busca voava.
             updateEditing { $0.servicesByCategory[categoryID] = result }
         }
     }
@@ -566,6 +620,8 @@ final class ProviderRegistrationViewModel: ObservableObject {
             updateEditing { $0.fieldErrors[.company(.email)] = .unavailable; $0.submission = .idle }
         case .cnpjUnavailable:
             updateEditing { $0.fieldErrors[.company(.cnpj)] = .unavailable; $0.submission = .idle }
+        case .duplicateVehicle:
+            updateEditing { $0.fieldErrors[.vehicle(.plate)] = .duplicate; $0.submission = .idle }
         case .duplicateService:
             updateEditing { $0.submission = .failure(reason: .duplicateService) }
         case .catalogChanged:

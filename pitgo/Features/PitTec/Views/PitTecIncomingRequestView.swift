@@ -237,6 +237,10 @@ struct PitTecIncomingRequestView: View {
                 .font(PitGoTypography.sectionTitle)
                 .accessibilityAddTraits(.isHeader)
 
+            if snapshot.appointment?.status == .accepted && !snapshot.hasArrived {
+                ExternalNavigationButton { await viewModel.externalNavigationDestination() }
+            }
+
             if !snapshot.hasArrived && snapshot.allowedActions.contains(.arrive) {
                 Button(action: { viewModel.arrive() }) {
                     actionLabel("Cheguei", isLoading: isPending(pendingAction, .start))
