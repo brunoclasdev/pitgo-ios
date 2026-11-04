@@ -21,6 +21,16 @@ import Foundation
                 precondition(abs(quote.expiresAt.timeIntervalSince1970 - 1792769400) < 1)
             }
         }
+        var sized = try JSONSerialization.jsonObject(with: payload(amount: "\"123.45\"", date: "2026-11-03T15:30:00Z")) as! [String: Any]
+        let vehicleID = UUID(), sizeID = UUID()
+        sized["dispatch_vehicle_id"] = vehicleID.uuidString
+        sized["size_id"] = sizeID.uuidString
+        sized["size_name"] = "Micro-ônibus"
+        sized["size_price_version"] = 7
+        let sizedQuote = try decoder.decode(GuinchoQuoteDTO.self, from: JSONSerialization.data(withJSONObject: sized)).domain()
+        precondition(sizedQuote.dispatchVehicleID == vehicleID && sizedQuote.sizeID == sizeID)
+        precondition(sizedQuote.sizeName == "Micro-ônibus" && sizedQuote.sizePriceVersion == 7)
+        precondition(sizedQuote.total == Decimal(string: "123.45")!)
         for (amount, date) in [("\"123x\"", "2026-10-23T15:30:00Z"), ("123.45", "invalid")] {
             do {
                 _ = try decoder.decode(GuinchoQuoteDTO.self, from: payload(amount: amount, date: date))

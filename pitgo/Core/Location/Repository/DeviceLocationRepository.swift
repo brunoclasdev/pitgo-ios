@@ -14,8 +14,10 @@ import Foundation
 @MainActor
 final class DeviceLocationRepository: NSObject {
     private let manager = CLLocationManager()
+    private var oneShotID = UUID()
     private var oneShotContinuation: CheckedContinuation<DeviceLocationOneShotResult, Never>?
     private var updateContinuation: AsyncStream<DeviceLocationFix>.Continuation?
+    private var updateStreamID = UUID()
     private var authorizationContinuation: AsyncStream<DeviceLocationAuthorization>.Continuation?
 
     override init() {
@@ -60,18 +62,21 @@ final class DeviceLocationRepository: NSObject {
         return await withCheckedContinuation { continuation in
             resumeOneShot(with: .timeout) // cancela qualquer requisição anterior pendente
             oneShotContinuation = continuation
+            let requestID = UUID()
+            oneShotID = requestID
             manager.requestLocation()
 
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                self?.resumeOneShot(with: .timeout)
+                guard let self, self.oneShotID == requestID else { return }
+                self.resumeOneShot(with: .timeout)
             }
         }
     }
 
     /// Cancela um fix one-shot pendente sem produzir resultado visível (troca de tela/sessão).
     func cancelOneShotFix() {
-        oneShotContinuation = nil
+        resumeOneShot(with: .failure)
     }
 
     private func resumeOneShot(with result: DeviceLocationOneShotResult) {
@@ -84,6 +89,9 @@ final class DeviceLocationRepository: NSObject {
     /// distância mínima (`distanceFilter = kCLDistanceFilterNone`), com atualização em background
     /// (ver contracts/location-realtime.md "Atualização em background").
     func startHighPrecisionUpdates() -> AsyncStream<DeviceLocationFix> {
+        let streamID = UUID()
+        updateStreamID = streamID
+        updateContinuation?.finish()
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = kCLDistanceFilterNone
         manager.allowsBackgroundLocationUpdates = manager.authorizationStatus == .authorizedAlways
@@ -92,12 +100,17 @@ final class DeviceLocationRepository: NSObject {
         return AsyncStream { continuation in
             updateContinuation = continuation
             continuation.onTermination = { [weak self] _ in
-                Task { @MainActor in self?.manager.stopUpdatingLocation() }
+                Task { @MainActor in
+                    guard let self, self.updateStreamID == streamID else { return }
+                    self.manager.stopUpdatingLocation()
+                    self.updateContinuation = nil
+                }
             }
         }
     }
 
     func stopHighPrecisionUpdates() {
+        updateStreamID = UUID()
         manager.stopUpdatingLocation()
         updateContinuation?.finish()
         updateContinuation = nil

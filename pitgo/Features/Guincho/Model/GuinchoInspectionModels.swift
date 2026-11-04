@@ -126,6 +126,17 @@ struct GuinchoInspectionPhoto: Decodable, Identifiable, Equatable {
     let state: GuinchoInspectionPhotoState
     let thumbnailObjectPath: String?
     let thumbnailByteSize: Int64?
+    let abandonedAt: Date?
+    let reserveOperationID: UUID?
+
+    var isValid: Bool {
+        let prefix = "\(appointmentID.uuidString.lowercased())/\(id.uuidString.lowercased())"
+        guard objectPath == prefix + ".jpg", (1...5_242_880).contains(byteSize),
+              state != .ready || (savedAt != nil && abandonedAt == nil),
+              detailPoint == nil || point == .detail else { return false }
+        if thumbnailObjectPath == nil { return thumbnailByteSize == nil }
+        return thumbnailObjectPath == prefix + ".thumb.jpg" && thumbnailByteSize.map { (1...262_144).contains($0) } == true
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, point, caption, state
@@ -140,6 +151,8 @@ struct GuinchoInspectionPhoto: Decodable, Identifiable, Equatable {
         case byteSize = "byte_size"
         case thumbnailObjectPath = "thumbnail_object_path"
         case thumbnailByteSize = "thumbnail_byte_size"
+        case abandonedAt = "abandoned_at"
+        case reserveOperationID = "reserve_operation_id"
     }
 
     var displayTitle: String {

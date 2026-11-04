@@ -11,6 +11,15 @@ import Foundation
 
 @MainActor
 final class VehicleFormViewModel: ObservableObject {
+    @Published var transportCategoryID: UUID?
+    @Published private(set) var categories: [TransportCategory] = []
+    @Published private(set) var catalogFailed = false
+
+    func loadCatalog() async {
+        do { categories = try await repository.transportCatalog().vehicle_categories; catalogFailed = false }
+        catch { catalogFailed = true }
+    }
+
     @Published private(set) var state: VehicleFormUiState
 
     private let repository: VehicleRepository
@@ -147,6 +156,7 @@ final class VehicleFormViewModel: ObservableObject {
             transmission: transmission,
             engine: engine,
             mileage: mileage,
+            transportCategoryID: transportCategoryID,
             makePrimary: state.showsPrimaryToggle ? state.input.makePrimary : false
         )
 

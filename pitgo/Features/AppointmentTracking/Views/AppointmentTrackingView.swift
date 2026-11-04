@@ -7,6 +7,7 @@
 //  histórico é mantido; só a posição atual aplicável.
 //
 
+import CoreLocation
 import SwiftUI
 
 struct AppointmentTrackingView: View {
@@ -23,10 +24,14 @@ struct AppointmentTrackingView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            mapSection
-            statusBar
-            ServiceRatingOffer(appointmentID: appointmentID, repository: ratingRepository)
+        ZStack {
+            mapSection.ignoresSafeArea(edges: .bottom)
+            ServiceMapCard {
+                VStack(spacing: 0) {
+                    statusBar
+                    ServiceRatingOffer(appointmentID: appointmentID, repository: ratingRepository)
+                }
+            }
         }
         .background(tokens.background)
         .navigationTitle("Acompanhar atendimento")
@@ -35,28 +40,16 @@ struct AppointmentTrackingView: View {
         .onDisappear { viewModel.disconnect() }
     }
 
-    @ViewBuilder
     private var mapSection: some View {
-        switch viewModel.marker {
-        case .unavailable, .ended:
-            VStack(spacing: 12) {
-                Image(systemName: "location.slash")
-                    .font(.system(size: 40))
-                    .foregroundStyle(tokens.textSecondary)
-                Text(viewModel.marker.isEnded ? "Este atendimento foi encerrado." : "Localização ainda não disponível.")
-                    .font(PitGoTypography.body)
-                    .foregroundStyle(tokens.textSecondary)
-                    .multilineTextAlignment(.center)
+        let coordinate: CLLocationCoordinate2D? = {
+            switch viewModel.marker {
+            case let .live(location, _), let .stale(location, _): return location
+            case .unavailable, .ended: return nil
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case let .live(location, _), let .stale(location, _):
-            PitGoMapView(
-                annotations: [PitGoMapAnnotationItem(id: "provider", coordinate: location, title: "Prestador")],
-                centerCoordinate: location,
-                zoomLevel: 15
-            )
-            .overlay(alignment: .bottomLeading) { MapAttributionView() }
-        }
+        }()
+        return PitGoMapView(annotations: coordinate.map { [PitGoMapAnnotationItem(id: "provider", coordinate: $0, title: "Prestador")] } ?? [],
+            centerCoordinate: coordinate, zoomLevel: 15, showsUserLocation: true)
+            .overlay(alignment: .topLeading) { MapAttributionView().padding(12) }
     }
 
     private var statusBar: some View {

@@ -78,6 +78,7 @@ struct GuinchoClientRouteMap: View {
     let trip: GuinchoTripSummary
     let phase: GuinchoClientRoutePhase
     let repository: AppointmentTrackingRepository
+    var fitBottomPadding: CGFloat = 320
 
     var body: some View {
         let target = phase.target(trip)
@@ -86,7 +87,8 @@ struct GuinchoClientRouteMap: View {
             + (model.provider.map { [PitGoMapAnnotationItem(id: "provider", coordinate: $0,
                 title: "Guincho", symbolName: "truck.box.fill")] } ?? [])
         PitGoMapView(annotations: annotations, centerCoordinate: target,
-            fitCoordinates: model.route.count >= 2 ? model.route : nil, fitTrigger: model.fitTrigger,
+            fitCoordinates: model.route.count >= 2 ? model.route : [trip.pickup, trip.destination], fitTrigger: model.fitTrigger,
+            fitBottomPadding: fitBottomPadding,
             routeLine: model.route, routeVersion: model.routeVersion, routeIsEstimated: false)
             .overlay(alignment: .topTrailing) {
                 Button { model.recenter() } label: {
@@ -102,7 +104,7 @@ struct GuinchoClientRouteMap: View {
                         .padding(.leading, 12).padding(.trailing, 64).padding(.top, 12)
                 }
             }
-            .overlay(alignment: .bottomLeading) { MapAttributionView() }
+            .overlay(alignment: .topLeading) { MapAttributionView().padding(.top, 72).padding(.leading, 12) }
             .task(id: "\(appointmentID):\(phase.rawValue)") {
                 await model.observe(appointmentID: appointmentID, trip: trip, phase: phase, repository: repository)
             }

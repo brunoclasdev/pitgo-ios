@@ -12,6 +12,7 @@ struct StoreCatalogView: View {
     @State private var isLoading = false
     @State private var failure: String?
     @State private var draft: StoreProductDraft?
+    @State private var uploadedPhotos: [UUID: (data: Data, path: String)] = [:]
 
     var body: some View {
         Group {
@@ -28,7 +29,7 @@ struct StoreCatalogView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if ownerStoreID == nil, selectedStore != nil {
-                ToolbarItem(placement: .navigationBarLeading) { Button("Lojas") { selectedStore = nil; products = [] } }
+                ToolbarItem(placement: .navigationBarLeading) { Button("Lojas") { selectedStore = nil; products = []; failure = nil }.disabled(isLoading) }
             }
         }
         .task { await load() }
@@ -46,7 +47,7 @@ struct StoreCatalogView: View {
             if let failure { Text(failure).foregroundStyle(.red) }
             if isLoading { ProgressView().frame(maxWidth: .infinity) }
             ForEach(stores) { store in
-                Button { selectedStore = store } label: {
+                Button { failure = nil; products = []; selectedStore = store } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(store.name).font(.headline).foregroundStyle(tokens.textPrimary)
                         if let description = store.description { Text(description).foregroundStyle(tokens.textSecondary) }
@@ -56,6 +57,8 @@ struct StoreCatalogView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .disabled(isLoading)
+        .refreshable { await load() }
     }
 
     private func productList(storeID: UUID, owner: Bool) -> some View {
@@ -77,14 +80,16 @@ struct StoreCatalogView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .task(id: storeID) { if products.isEmpty { await loadProducts(storeID) } }
+        .disabled(isLoading)
+        .refreshable { await loadProducts(storeID) }
+        .task(id: storeID) { await loadProducts(storeID) }
     }
 
     @MainActor private func load() async {
-        guard ownerStoreID == nil else { return }
+        guard ownerStoreID == nil, !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
-        do { stores = try await repository.stores() }
+        do { stores = try await repository.stores(); failure = nil }
         catch { failure = "Não foi possível carregar as lojas. Tente novamente." }
     }
 
@@ -97,10 +102,10 @@ struct StoreCatalogView: View {
 
     @MainActor private func save(_ updated: StoreProductDraft) async -> String? {
         guard let ownerStoreID else { return "Não foi possível identificar a loja." }
-        let amountText = updated.price.replacingOccurrences(of: ",", with: ".")
+        guard !isLoading else { return "Aguarde a operação em andamento." }
         guard !updated.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, updated.name.count <= 150,
               !updated.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, updated.description.count <= 2000,
-              let amount = Decimal(string: amountText), amount > 0 else {
+              StorePrice.isValid(updated.price) else {
             return "Preencha nome, descrição e um preço válido maior que zero."
         }
         isLoading = true
@@ -108,9 +113,16 @@ struct StoreCatalogView: View {
         do {
             var value = updated
             if let photo = updated.photoData {
-                value.imagePath = try await repository.upload(photo: photo, mime: updated.photoType, storeID: ownerStoreID, productID: updated.id)
+                if let uploaded = uploadedPhotos[updated.id], uploaded.data == photo {
+                    value.imagePath = uploaded.path
+                } else {
+                    let path = try await repository.upload(photo: photo, mime: updated.photoType, storeID: ownerStoreID, productID: updated.id)
+                    uploadedPhotos[updated.id] = (photo, path)
+                    value.imagePath = path
+                }
             }
             try await repository.save(value)
+            uploadedPhotos[updated.id] = nil
             draft = nil
             await loadProducts(ownerStoreID)
             return nil
@@ -120,6 +132,9 @@ struct StoreCatalogView: View {
     }
 
     @MainActor private func delete(_ product: StoreProduct, storeID: UUID) async {
+        guard ownerStoreID == storeID, !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
         do { try await repository.delete(product); await loadProducts(storeID) }
         catch { failure = "Não foi possível remover o produto." }
     }
@@ -168,6 +183,8 @@ private struct StoreProductEditor: View {
             if draft.photoData != nil { Text("Foto selecionada") }
             if let photoError { Text(photoError).font(.caption).foregroundStyle(.red) }
         }
+        .disabled(isSaving)
+        .interactiveDismissDisabled(isSaving)
         .navigationTitle("Produto")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancelar", action: onCancel).disabled(isSaving) }

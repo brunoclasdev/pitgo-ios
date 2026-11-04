@@ -15,6 +15,8 @@ struct ProviderIncomingRequestView: View {
     @StateObject private var viewModel: ProviderIncomingRequestViewModel
     @StateObject private var routeViewModel: GuinchoRouteViewModel
     @State private var showCancellationSheet = false
+    @State private var showInspection = false
+    @State private var mapFix: DeviceLocationFix?
     @State private var locallySubmittedInspectionAppointmentID: UUID?
 
     let onBack: () -> Void
@@ -41,7 +43,10 @@ struct ProviderIncomingRequestView: View {
     }
 
     var body: some View {
-        content
+        ZStack {
+            providerMap.ignoresSafeArea(edges: .bottom)
+            ServiceMapCard { content }
+        }
             .background(tokens.background)
             .navigationTitle("Solicitação")
             .navigationBarTitleDisplayMode(.inline)
@@ -55,7 +60,11 @@ struct ProviderIncomingRequestView: View {
                     .accessibilityLabel("Voltar")
                 }
             }
-            .task { viewModel.start(); syncRoute() }
+            .task {
+                viewModel.start()
+                syncRoute()
+                await locateMap()
+            }
             .onDisappear { viewModel.stop(); routeViewModel.stop() }
             .onChange(of: viewModel.state) { _ in syncRoute() }
             .onChange(of: isSessionExpired) { expired in
@@ -70,12 +79,87 @@ struct ProviderIncomingRequestView: View {
             .onChange(of: isPendingCancel) { pending in
                 if !pending { showCancellationSheet = false }
             }
+            .sheet(isPresented: $showInspection) {
+                if let appointmentID = mapSnapshot?.appointment?.appointmentID {
+                    NavigationStack {
+                        GuinchoInspectionView(appointmentID: appointmentID, repository: inspectionRepository) {
+                            locallySubmittedInspectionAppointmentID = appointmentID
+                            showInspection = false
+                            viewModel.refreshNow()
+                        }
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Fechar") { showInspection = false }
+                            }
+                        }
+                    }
+                }
+            }
             .sheet(isPresented: $showCancellationSheet) {
                 DispatchCancellationSheet(isSubmitting: isPendingCancel) { reason in
                     viewModel.cancel(reason: reason)
                 }
                 .interactiveDismissDisabled(isPendingCancel)
             }
+    }
+
+    private var mapSnapshot: MobileDispatchSnapshot? {
+        switch viewModel.state {
+        case let .incoming(snapshot, _), let .reserved(snapshot, _): snapshot
+        case let .failure(snapshot): snapshot
+        default: nil
+        }
+    }
+
+    private var activeRoute: GuinchoRouteSnapshot? {
+        switch routeViewModel.state {
+        case let .ready(route), let .loading(route?), let .waiting(route?, _), let .unavailable(route?, _): route
+        default: nil
+        }
+    }
+
+    /// A single map stays behind the request, payment wait, pickup and transport cards.
+    private var providerMap: some View {
+        let trip = mapSnapshot?.guinchoTrip
+        let transporting = mapSnapshot?.appointment?.status == .inProgress
+        let route = transporting ? activeRoute : nil
+        let fix = routeViewModel.latestFix ?? mapFix
+        let current: CLLocationCoordinate2D? = fix.flatMap {
+            guard Date().timeIntervalSince($0.timestamp) <= 30,
+                  $0.horizontalAccuracy > 0, $0.horizontalAccuracy <= 100 else { return nil }
+            return CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+        }
+        let points: [CLLocationCoordinate2D] = route?.coordinates ?? trip.map { trip in
+            transporting ? [trip.pickup, trip.destination] : current.map { [$0, trip.pickup] } ?? [trip.pickup]
+        } ?? []
+        var annotations: [PitGoMapAnnotationItem] = []
+        if let trip {
+            annotations.append(.init(id: "pickup", coordinate: trip.pickup, title: "Retirada", symbolName: "car.fill"))
+            annotations.append(.init(id: "destination", coordinate: trip.destination, title: "Destino contratado", symbolName: "flag.fill"))
+        }
+        if let current {
+            annotations.append(.init(id: "provider", coordinate: current, title: "Você", symbolName: "truck.box.fill"))
+        } else if let route {
+            annotations.append(.init(id: "provider", coordinate: route.origin.point.coordinate, title: "Última posição usada na rota", symbolName: "truck.box.fill"))
+        }
+        return PitGoMapView(annotations: annotations, centerCoordinate: current ?? trip?.pickup,
+            showsUserLocation: true, fitCoordinates: points.count >= 2 ? points : nil,
+            fitTrigger: transporting ? Int(route?.routeVersion ?? 0) + 1 : 0, fitBottomPadding: 340,
+            routeLine: route?.coordinates, routeVersion: route?.routeVersion, routeIsEstimated: false)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .topLeading) { MapAttributionView().padding(12) }
+    }
+
+    private func locateMap() async {
+        let location = DeviceLocationRepository()
+        switch location.authorizationStatus {
+        case .denied, .restricted: return
+        case .notDetermined: location.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse: break
+        }
+        if case let .success(fix) = await location.requestOneShotFix(), !Task.isCancelled {
+            mapFix = fix
+        }
     }
 
     private var isSessionExpired: Bool {
@@ -129,7 +213,7 @@ struct ProviderIncomingRequestView: View {
     }
 
     private func incomingState(_ snapshot: MobileDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
-        ScrollView {
+        Group {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Nova solicitação")
                     .font(PitGoTypography.sectionTitle)
@@ -239,20 +323,22 @@ struct ProviderIncomingRequestView: View {
     /// resolve para `provider_amount` do lado do prestador — nunca os 10%/taxas do cliente).
     @ViewBuilder
     private func guinchoReservedState(_ snapshot: MobileDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
-        ScrollView {
+        Group {
             VStack(alignment: .leading, spacing: 16) {
-                if let trip = snapshot.guinchoTrip {
-                    Text(trip.clientName).font(PitGoTypography.sectionTitle).accessibilityAddTraits(.isHeader)
-                    Text(trip.vehicle).font(PitGoTypography.body).foregroundStyle(tokens.textSecondary)
-                    Text("Retirada: \(trip.pickupAddress)").font(PitGoTypography.body)
-                    Text("Destino: \(trip.destinationAddress)").font(PitGoTypography.body)
-                }
-                if let appointment = snapshot.appointment {
-                    Text(formattedPrice(appointment.quotedPrice, isFree: appointment.isFree))
-                        .font(PitGoTypography.sectionTitle)
+                if snapshot.canStartGuinchoTransport {
+                    Text(snapshot.inspection?.required == false ? "Tudo pronto para iniciar o trajeto." : "Vistoria aprovada. Tudo pronto para iniciar o trajeto.")
+                        .font(PitGoTypography.body)
+                        .accessibilityAddTraits(.updatesFrequently)
+                    Button(action: { viewModel.startTransport() }) {
+                        actionLabel("Iniciar trajeto", isLoading: isPending(pendingAction, .start))
+                    }
+                    .foregroundStyle(.white).background(tokens.accent).clipShape(Capsule())
+                    .frame(minHeight: 56).disabled(pendingAction != nil)
                 }
 
                 switch snapshot.appointment?.status {
+                case .awaitingPayment, .awaitingClientConfirmation:
+                    ProgressView("Aguardando o pagamento do cliente…")
                 case .accepted:
                     if snapshot.appointment?.arrivedAt == nil {
                         Text("A caminho da retirada.").font(PitGoTypography.body)
@@ -271,27 +357,16 @@ struct ProviderIncomingRequestView: View {
                             if snapshot.inspection?.state == .submitted ||
                                 (locallySubmittedInspectionAppointmentID == appointmentID && snapshot.inspection?.state != .approved) {
                                 Text("Aguardando aprovação das fotos pelo cliente.").font(PitGoTypography.body)
-                                guinchoWaitingMap(snapshot)
-                                Button("Atualizar situação") { viewModel.refreshNow() }.frame(minHeight: 44)
                             } else if snapshot.inspection?.state == .approved {
                                 Text("Vistoria aprovada pelo cliente.").font(PitGoTypography.body)
-                                guinchoWaitingMap(snapshot)
                             } else {
-                                GuinchoInspectionView(appointmentID: appointmentID, repository: inspectionRepository) {
-                                    locallySubmittedInspectionAppointmentID = appointmentID
-                                    viewModel.refreshNow()
-                                }
-                                .frame(minHeight: 320)
+                                Button("Fazer vistoria do veículo") { showInspection = true }
+                                    .frame(minHeight: 48)
                             }
                         }
-                        if snapshot.allowedActions.contains(.start),
-                           let inspection = snapshot.inspection,
-                           !inspection.required || inspection.state == .approved {
-                            Button(action: { viewModel.startTransport() }) {
-                                actionLabel("Iniciar transporte", isLoading: isPending(pendingAction, .start))
-                            }
-                            .foregroundStyle(.white).background(tokens.accent).clipShape(Capsule())
-                            .frame(minHeight: 56).disabled(pendingAction != nil)
+                        if !snapshot.canStartGuinchoTransport {
+                            Button("Atualizar situação da vistoria") { viewModel.refreshNow() }
+                                .frame(minHeight: 44).disabled(pendingAction != nil)
                         }
                     }
                 case .inProgress:
@@ -322,6 +397,21 @@ struct ProviderIncomingRequestView: View {
                     EmptyView()
                 }
 
+                DisclosureGroup("Detalhes do atendimento") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if let trip = snapshot.guinchoTrip {
+                            Text(trip.clientName).font(PitGoTypography.sectionTitle).accessibilityAddTraits(.isHeader)
+                            Text(trip.vehicle).font(PitGoTypography.body).foregroundStyle(tokens.textSecondary)
+                            Text("Retirada: \(trip.pickupAddress)").font(PitGoTypography.body)
+                            Text("Destino: \(trip.destinationAddress)").font(PitGoTypography.body)
+                        }
+                        if let appointment = snapshot.appointment {
+                            Text(formattedPrice(appointment.quotedPrice, isFree: appointment.isFree))
+                                .font(PitGoTypography.sectionTitle)
+                        }
+                    }
+                }
+
                 if snapshot.allowedActions.contains(.cancel) {
                     Button("Cancelar atendimento") { showCancellationSheet = true }
                         .frame(minHeight: 44)
@@ -333,70 +423,12 @@ struct ProviderIncomingRequestView: View {
     }
 
     @ViewBuilder
-    private func guinchoWaitingMap(_ snapshot: MobileDispatchSnapshot) -> some View {
-        if let trip = snapshot.guinchoTrip {
-            PitGoMapView(annotations: [
-                .init(id: "inspection-pickup", coordinate: trip.pickup, title: "Retirada", symbolName: "car.fill"),
-                .init(id: "inspection-destination", coordinate: trip.destination, title: "Destino contratado", symbolName: "flag.fill")
-            ], fitCoordinates: [trip.pickup, trip.destination], fitTrigger: 0)
-            .frame(height: 280)
-        }
-    }
-
-    @ViewBuilder
     private func guinchoRouteContent(_ snapshot: MobileDispatchSnapshot) -> some View {
-        switch routeViewModel.state {
-        case let .ready(route), let .loading(route?), let .waiting(route?, _), let .unavailable(route?, _):
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Percurso viário · \(route.distanceMeters / 1000) km")
-                    .font(PitGoTypography.body).bold()
-                TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                    guinchoRouteMap(route, now: timeline.date)
-                }
-                routeStatus
-            }
-        case .loading(nil):
-            VStack(spacing: 10) {
-                routeDestinationMap(snapshot)
-                ProgressView("Calculando percurso…")
-            }
-        case let .waiting(_, message), let .unavailable(_, message):
-            routeDestinationMap(snapshot)
-            Text(message).font(PitGoTypography.caption).foregroundStyle(tokens.textSecondary)
-            Button("Tentar novamente") { routeViewModel.retry() }.frame(minHeight: 44)
-        case .closed:
-            EmptyView()
+        if let route = activeRoute {
+            Text("Percurso viário · \(route.distanceMeters / 1000) km")
+                .font(PitGoTypography.body).bold()
         }
-    }
-
-    @ViewBuilder
-    private func routeDestinationMap(_ snapshot: MobileDispatchSnapshot) -> some View {
-        if let destination = snapshot.guinchoTrip?.destination {
-            PitGoMapView(annotations: [
-                .init(id: "guincho-destination", coordinate: destination, title: "Destino contratado", symbolName: "flag.fill")
-            ], centerCoordinate: destination, zoomLevel: 13)
-            .frame(height: 220)
-        }
-    }
-
-    private func guinchoRouteMap(_ route: GuinchoRouteSnapshot, now: Date) -> some View {
-        let fix = routeViewModel.latestFix
-        let isFresh = fix.map { now.timeIntervalSince($0.timestamp) <= 10 && $0.timestamp.timeIntervalSinceNow <= 5 && $0.horizontalAccuracy <= 100 } ?? false
-        let current = isFresh ? fix.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } : nil
-        let annotations = [
-            PitGoMapAnnotationItem(id: "guincho-origin", coordinate: current ?? route.origin.point.coordinate,
-                                   title: isFresh ? "Posição atual do guincho" : "Última posição usada na rota", symbolName: "car.fill"),
-            PitGoMapAnnotationItem(id: "guincho-destination", coordinate: route.destination.coordinate, title: "Destino contratado", symbolName: "flag.fill")
-        ]
-        return VStack(alignment: .leading, spacing: 6) {
-            PitGoMapView(annotations: annotations, fitCoordinates: route.coordinates, fitTrigger: Int(route.routeVersion),
-                         routeLine: route.coordinates, routeVersion: route.routeVersion, routeIsEstimated: false)
-                .frame(height: 280)
-            if !isFresh {
-                Text("Posição atual indisponível; o marcador mostra a origem registrada nesta rota.")
-                    .font(PitGoTypography.caption).foregroundStyle(tokens.textSecondary)
-            }
-        }
+        routeStatus
     }
 
     @ViewBuilder

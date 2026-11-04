@@ -68,10 +68,22 @@ struct AppointmentProviderLocationSnapshot: Decodable {
     let capturedAt: Date?
     let publishedAt: Date?
     let version: Int64?
-    let fresh: Bool?
+    let state: String?
+    let status: String?
+    private let legacyFresh: Bool?
+
+    var fresh: Bool? {
+        switch state {
+        case "LIVE": true
+        case "STALE": false
+        default: legacyFresh
+        }
+    }
+    var isEnded: Bool { state == "ENDED" }
 
     enum CodingKeys: String, CodingKey {
-        case latitude, longitude, version, fresh
+        case latitude, longitude, version, state, status
+        case legacyFresh = "fresh"
         case accuracyM = "accuracy_m"
         case capturedAt = "captured_at"
         case publishedAt = "published_at"

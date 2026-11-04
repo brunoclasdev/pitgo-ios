@@ -80,11 +80,17 @@ final class GuinchoInspectionRepository {
     }
 
     func download(_ photo: GuinchoInspectionPhoto) async throws -> Data {
-        try await client.storage.from(bucket).download(path: photo.objectPath)
+        guard photo.isValid else { throw GuinchoInspectionError.invalidImage }
+        let data = try await client.storage.from(bucket).download(path: photo.objectPath)
+        guard Int64(data.count) == photo.byteSize else { throw GuinchoInspectionError.invalidImage }
+        return data
     }
 
     func downloadThumbnail(_ photo: GuinchoInspectionPhoto) async throws -> Data {
-        try await client.storage.from(bucket).download(path: photo.thumbnailObjectPath ?? photo.objectPath)
+        guard photo.isValid else { throw GuinchoInspectionError.invalidImage }
+        let data = try await client.storage.from(bucket).download(path: photo.thumbnailObjectPath ?? photo.objectPath)
+        guard Int64(data.count) == (photo.thumbnailByteSize ?? photo.byteSize) else { throw GuinchoInspectionError.invalidImage }
+        return data
     }
 
     func capture(
@@ -92,38 +98,70 @@ final class GuinchoInspectionRepository {
         versionID: UUID, replaces: UUID? = nil, capturedAt: Date, reserveOperationID: UUID, confirmOperationID: UUID,
         document: GuinchoInspectionDocument
     ) async throws -> GuinchoInspectionDocument {
-        guard !document.closed else { throw GuinchoInspectionError.closed }
-        guard (1...5_242_880).contains(jpegData.count), (1...262_144).contains(thumbnailData.count) else {
+        guard (1...GuinchoInspectionImageEncoder.originalByteLimit).contains(jpegData.count),
+              (1...GuinchoInspectionImageEncoder.thumbnailByteLimit).contains(thumbnailData.count) else {
             throw GuinchoInspectionError.invalidImage
         }
-        let reservation: GuinchoInspectionMutationResult = try await mutate("prepare_guincho_inspection_photo_v2", PrepareInspectionPhotoParams(
-            p_appointment_id: document.appointmentID, p_expected_revision: document.revision, p_operation_id: reserveOperationID,
-            p_version_id: versionID, p_point: point.rawValue, p_captured_at: capturedAt,
-            p_byte_size: Int64(jpegData.count), p_thumbnail_byte_size: Int64(thumbnailData.count), p_caption: caption, p_replaces_photo_id: replaces,
-            p_detail_point: detailPoint
-        ))
-        guard let photo = reservation.photo else { throw GuinchoInspectionError.contract }
+        let accountID = try await currentAccountID()
+        let pipeline = GuinchoInspectionCapturePipeline(
+            fetchDocument: {
+                try await self.ensureAccount(accountID)
+                return try await self.document(appointmentID: document.appointmentID)
+            },
+            reserve: { latest in
+                // Older iOS manifests stored whole seconds. The same operation's server row
+                // is authoritative when recovering a reservation created before this fix.
+                let knownPhoto = (latest.pendingPhotos + latest.requiredPhotos + latest.namedPhotos)
+                    .first { $0.reserveOperationID == reserveOperationID }
+                let reservationCapturedAt = knownPhoto?.capturedAt ?? capturedAt
+                let result = try await self.mutate("prepare_guincho_inspection_photo_v2", PrepareInspectionPhotoParams(
+                    p_appointment_id: latest.appointmentID, p_expected_revision: latest.revision, p_operation_id: reserveOperationID,
+                    p_version_id: versionID, p_point: point.rawValue, p_captured_at: reservationCapturedAt,
+                    p_byte_size: Int64(jpegData.count), p_thumbnail_byte_size: Int64(thumbnailData.count),
+                    p_caption: caption?.trimmingCharacters(in: .whitespacesAndNewlines), p_replaces_photo_id: replaces,
+                    p_detail_point: detailPoint
+                ))
+                guard let photo = result.photo, photo.appointmentID == document.appointmentID,
+                      photo.reservedVersionID == versionID, photo.point == point, photo.detailPoint == detailPoint,
+                      photo.reserveOperationID == nil || photo.reserveOperationID == reserveOperationID,
+                      photo.byteSize == Int64(jpegData.count), photo.thumbnailByteSize == Int64(thumbnailData.count) else {
+                    throw GuinchoInspectionError.context
+                }
+                return result
+            },
+            upload: { photo in
+                try await self.ensureAccount(accountID)
+                try await self.upload(path: photo.objectPath, bytes: jpegData)
+                guard let path = photo.thumbnailObjectPath else { throw GuinchoInspectionError.contract }
+                try await self.ensureAccount(accountID)
+                try await self.upload(path: path, bytes: thumbnailData)
+            },
+            confirm: { latest, photo in
+                try await self.mutate("confirm_guincho_inspection_photo_v2", InspectionPhotoCommandParams(
+                    p_appointment_id: latest.appointmentID, p_expected_revision: latest.revision,
+                    p_operation_id: confirmOperationID, p_photo_id: photo.id
+                ))
+            }
+        )
+        let result = try await pipeline.save(versionID: versionID)
+        try await ensureAccount(accountID)
+        return result
+    }
+
+    private func ensureAccount(_ accountID: UUID) async throws {
+        guard try await currentAccountID() == accountID else { throw GuinchoInspectionError.sessionExpired }
+        try Task.checkCancellation()
+    }
+
+    private func upload(path: String, bytes: Data) async throws {
         do {
-            try await client.storage.from(bucket).upload(photo.objectPath, data: jpegData, options: FileOptions(contentType: "image/jpeg", upsert: false))
+            try await client.storage.from(bucket).upload(path, data: bytes,
+                options: FileOptions(contentType: "image/jpeg", upsert: false))
         } catch let error as StorageError {
-            let duplicate = error.statusCode == "409" || error.error?.localizedCaseInsensitiveContains("duplicate") == true
-            guard duplicate else { throw error }
-            try await ensureRemoteFile(path: photo.objectPath, bytes: jpegData)
+            let duplicateCodes = ["duplicate", "resourcealreadyexists", "keyalreadyexists"]
+            guard error.statusCode == "409" || duplicateCodes.contains(error.error?.lowercased() ?? "") else { throw error }
+            try await ensureRemoteFile(path: path, bytes: bytes)
         }
-        guard let thumbPath = photo.thumbnailObjectPath else { throw GuinchoInspectionError.contract }
-        do {
-            try await client.storage.from(bucket).upload(thumbPath, data: thumbnailData, options: FileOptions(contentType: "image/jpeg", upsert: false))
-        } catch let error as StorageError {
-            let duplicate = error.statusCode == "409" || error.error?.localizedCaseInsensitiveContains("duplicate") == true
-            guard duplicate else { throw error }
-            try await ensureRemoteFile(path: thumbPath, bytes: thumbnailData)
-        }
-        let latest = reservation.inspection
-        let confirmed: GuinchoInspectionMutationResult = try await mutate("confirm_guincho_inspection_photo_v2", InspectionPhotoCommandParams(
-            p_appointment_id: latest.appointmentID, p_expected_revision: latest.revision, p_operation_id: confirmOperationID,
-            p_photo_id: photo.id
-        ))
-        return confirmed.inspection
     }
 
     func submit(_ document: GuinchoInspectionDocument, operationID: UUID, versionID: UUID) async throws -> GuinchoInspectionMutationResult {
@@ -169,19 +207,16 @@ final class GuinchoInspectionRepository {
     private func mutate<Params: Encodable>(_ rpc: String, _ params: Params) async throws -> GuinchoInspectionMutationResult {
         let result: GuinchoInspectionMutationResult = try await client.rpc(rpc, params: params).execute().value
         guard result.outcome == "APPLIED" || result.outcome == "EXISTING" else {
-            throw GuinchoInspectionError.revisionConflict
+            if result.outcome == "REVISION_CONFLICT" { throw GuinchoInspectionError.revisionConflict }
+            throw GuinchoInspectionError.contract
         }
         return result
     }
 
     private func ensureRemoteFile(path: String, bytes: Data) async throws {
         let remote = try await client.storage.from(bucket).download(path: path)
-        guard SHA256.hash(data: remote).description == SHA256.hash(data: bytes).description else {
+        guard SHA256.hash(data: remote) == SHA256.hash(data: bytes) else {
             throw GuinchoInspectionError.invalidImage
         }
     }
-}
-
-enum GuinchoInspectionError: Error {
-    case closed, invalidImage, reasonRequired, revisionConflict, contract
 }

@@ -55,6 +55,7 @@ struct PaymentStatusEnvelope: Decodable {
     let paymentID: UUID?
     let status: PaymentStatus?
     let method: PaymentMethodKind?
+    let details: PaymentStatusDetails
 
     enum CodingKeys: String, CodingKey {
         case outcome
@@ -68,6 +69,7 @@ struct PaymentStatusEnvelope: Decodable {
         outcome = try container.decode(String.self, forKey: .outcome)
         paymentID = try container.decodeIfPresent(UUID.self, forKey: .paymentID)
         status = try container.decodeIfPresent(PaymentStatus.self, forKey: .status)
+        details = try PaymentStatusDetails(from: decoder)
         // The method is useful metadata only. Do not discard an otherwise valid terminal
         // payment status if an older backend returns a method alias not known by this app.
         if let rawMethod = try container.decodeIfPresent(String.self, forKey: .method) {
@@ -88,4 +90,51 @@ struct RefundPaymentRequestBody: Encodable {
 
 struct RefundPaymentResponse: Decodable {
     let status: PaymentStatus
+}
+
+struct PaymentCancellationResponse: Decodable {
+    let status: PaymentStatus
+    let cancelRequested: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case cancelRequested = "cancel_requested"
+    }
+}
+
+nonisolated struct PaymentStatusDetails: Decodable {
+    var pix: PaymentPixDetails? = nil
+    var cancelRequested: Bool = false
+    var supportRequired: Bool = false
+    var syncState: String = "CURRENT"
+    var requestID: UUID? = nil
+    var serviceID: UUID? = nil
+    var dispatchKind: PaymentDispatchKind? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case pix
+        case cancelRequested = "cancel_requested"
+        case supportRequired = "support_required"
+        case syncState = "sync_state"
+        case requestID = "request_id"
+        case serviceID = "service_id"
+        case dispatchKind = "dispatch_kind"
+    }
+
+    init(pix: PaymentPixDetails? = nil, cancelRequested: Bool = false, supportRequired: Bool = false,
+         requestID: UUID? = nil, serviceID: UUID? = nil, dispatchKind: PaymentDispatchKind? = nil, syncState: String = "CURRENT") {
+        self.pix = pix; self.cancelRequested = cancelRequested; self.supportRequired = supportRequired
+        self.syncState = syncState
+        self.requestID = requestID; self.serviceID = serviceID; self.dispatchKind = dispatchKind
+    }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        pix = try values.decodeIfPresent(PaymentPixDetails.self, forKey: .pix)
+        cancelRequested = try values.decodeIfPresent(Bool.self, forKey: .cancelRequested) ?? false
+        supportRequired = try values.decodeIfPresent(Bool.self, forKey: .supportRequired) ?? false
+        syncState = try values.decodeIfPresent(String.self, forKey: .syncState) ?? "CURRENT"
+        requestID = try values.decodeIfPresent(UUID.self, forKey: .requestID)
+        serviceID = try values.decodeIfPresent(UUID.self, forKey: .serviceID)
+        dispatchKind = try values.decodeIfPresent(PaymentDispatchKind.self, forKey: .dispatchKind)
+    }
 }

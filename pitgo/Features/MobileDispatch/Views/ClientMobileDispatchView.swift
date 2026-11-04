@@ -4,7 +4,7 @@
 //
 //  Tela dedicada de busca/proposta/decisão do guincho móvel (`013`). Sem `TabView` — View filha
 //  focada, mesmo padrão de `AppointmentTrackingView` (`009`/`010`). O card textual é a fonte
-//  acessível; o mapa (quando a posição do candidato é válida) é complementar.
+//  acessível; o mapa permanece como fundo em todas as etapas do atendimento.
 //
 
 import CoreLocation
@@ -69,7 +69,10 @@ struct ClientMobileDispatchView: View {
     }
 
     var body: some View {
-        content
+        ZStack {
+            dispatchMap.ignoresSafeArea(edges: .bottom)
+            ServiceMapCard { content }
+        }
             .background(tokens.background)
             .navigationTitle("Guincho")
             .navigationBarTitleDisplayMode(.inline)
@@ -171,7 +174,7 @@ struct ClientMobileDispatchView: View {
     private var paymentSheetBinding: Binding<Bool> {
         Binding(
             get: { paymentServiceID != nil },
-            set: { isPresented in if !isPresented { onBack() } }
+            set: { isPresented in if !isPresented && paymentServiceID != nil { onBack() } }
         )
     }
 
@@ -242,6 +245,39 @@ struct ClientMobileDispatchView: View {
         case .sessionExpired:
             Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private var mapSnapshot: MobileDispatchSnapshot? {
+        switch viewModel.state {
+        case let .content(snapshot, _), let .terminal(snapshot): snapshot
+        case let .failure(_, snapshot): snapshot
+        default: nil
+        }
+    }
+
+    @ViewBuilder private var dispatchMap: some View {
+        if let snapshot = mapSnapshot, let trip = snapshot.guinchoTrip,
+           let appointment = snapshot.appointment {
+            GuinchoClientRouteMap(appointmentID: appointment.appointmentID, trip: trip,
+                phase: appointment.serviceStartedAt != nil || appointment.status == .inProgress || appointment.status == .awaitingClientCompletionConfirmation
+                    ? .transporting : .approaching,
+                repository: trackingRepository)
+        } else {
+            PitGoMapView(annotations: candidateAnnotations, centerCoordinate: candidateAnnotations.first?.coordinate ?? clientCoordinate,
+                showsUserLocation: true, fitBottomPadding: 300)
+                .overlay(alignment: .topLeading) { MapAttributionView().padding(12) }
+        }
+    }
+
+    private var clientCoordinate: CLLocationCoordinate2D? {
+        viewModel.lastFix.map { .init(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    private var candidateAnnotations: [PitGoMapAnnotationItem] {
+        guard let candidate = mapSnapshot?.candidate, candidate.hasValidLocation,
+              let latitude = candidate.latitude, let longitude = candidate.longitude else { return [] }
+        return [PitGoMapAnnotationItem(id: candidate.candidateID.uuidString,
+            coordinate: .init(latitude: latitude, longitude: longitude), title: candidate.providerName, symbolName: "car.fill")]
     }
 
     // MARK: - Location required
@@ -339,10 +375,9 @@ struct ClientMobileDispatchView: View {
     }
 
     private func optionFoundState(_ snapshot: MobileDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
-        ScrollView {
+        Group {
             VStack(alignment: .leading, spacing: 16) {
                 if let candidate = snapshot.candidate {
-                    candidateMap(candidate)
                     proposalCard(candidate)
                 }
                 HStack(spacing: 12) {
@@ -458,20 +493,7 @@ struct ClientMobileDispatchView: View {
         let transporting = snapshot.appointment?.serviceStartedAt != nil
             || snapshot.appointment?.status == .inProgress
             || snapshot.appointment?.status == .awaitingClientCompletionConfirmation
-        return VStack(spacing: 0) {
-            if let trip, let appointment = snapshot.appointment {
-                GuinchoClientRouteMap(appointmentID: appointment.appointmentID, trip: trip,
-                    phase: transporting ? .transporting : .approaching, repository: trackingRepository)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                VStack {
-                    Spacer()
-                    ProgressView("Carregando dados do atendimento…")
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            ScrollView {
+        return Group {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(snapshot.providerName ?? "Guincheiro")
                         .font(PitGoTypography.sectionTitle)
@@ -535,8 +557,6 @@ struct ClientMobileDispatchView: View {
                     }
                 }
                 .padding(16)
-            }
-            .frame(maxHeight: 280)
         }
     }
 
@@ -699,38 +719,6 @@ struct ClientMobileDispatchView: View {
     }
 
     // MARK: - Proposal card / map
-
-    private func candidateMap(_ candidate: CandidateProposal) -> some View {
-        Group {
-            if candidate.hasValidLocation, let latitude = candidate.latitude, let longitude = candidate.longitude {
-                PitGoMapView(
-                    annotations: [PitGoMapAnnotationItem(
-                        id: candidate.candidateID.uuidString,
-                        coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
-                        title: candidate.providerName,
-                        symbolName: "car.fill"
-                    )],
-                    centerCoordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
-                    zoomLevel: 14
-                )
-                .frame(height: 220)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(alignment: .bottomLeading) { MapAttributionView() }
-                .accessibilityHidden(true) // o card textual abaixo já contém toda a informação
-            } else {
-                VStack {
-                    Image(systemName: "location.slash")
-                        .foregroundStyle(tokens.textSecondary)
-                    Text("Posição do guincho indisponível no momento.")
-                        .font(PitGoTypography.caption)
-                        .foregroundStyle(tokens.textSecondary)
-                }
-                .frame(maxWidth: .infinity, minHeight: 120)
-                .background(tokens.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            }
-        }
-    }
 
     private func proposalCard(_ candidate: CandidateProposal) -> some View {
         VStack(alignment: .leading, spacing: 8) {

@@ -74,7 +74,7 @@ struct PaymentCheckoutView: View {
                     }
                 }
         }
-        .interactiveDismissDisabled(isBusy)
+        .interactiveDismissDisabled()
         .task { viewModel.start() }
         .onDisappear { viewModel.stop() }
         .onChange(of: viewModel.state) { state in
@@ -90,7 +90,9 @@ struct PaymentCheckoutView: View {
                 presentedCardContext = nil
             }
         }
-        .sheet(item: $presentedCardContext) { context in
+        .sheet(item: $presentedCardContext, onDismiss: {
+            if case .confirmingCard = viewModel.state { viewModel.chooseAnotherMethod() }
+        }) { context in
             savedCardSecurityCodeSheet(context)
         }
     }
@@ -127,7 +129,7 @@ struct PaymentCheckoutView: View {
 
     private var isBusy: Bool {
         switch viewModel.state {
-        case .loadingCardContext, .creatingPayment: true
+        case .loadingAmount, .loadingCardContext, .creatingPayment, .cancelling: true
         default: false
         }
     }
@@ -135,7 +137,7 @@ struct PaymentCheckoutView: View {
     @ViewBuilder
     private var content: some View {
         switch viewModel.state {
-        case .loadingAmount, .loadingCardContext, .creatingPayment:
+        case .loadingAmount, .loadingCardContext, .creatingPayment, .cancelling:
             ProgressView()
         case .invalidService:
             messageState(
@@ -161,6 +163,9 @@ struct PaymentCheckoutView: View {
                 Button("Cancelar pagamento", role: .cancel, action: cancelCheckout)
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
+        case .cancelled:
+            messageState(symbol: "xmark.circle", message: "Cancelamento solicitado. Acompanhe a situação do pagamento no histórico.",
+                primaryAction: ("Fechar", { onCancelled(); dismiss() }))
         case .approved:
             messageState(symbol: "checkmark.circle.fill", message: "Pagamento aprovado.", primaryAction: nil)
         case .declined:
@@ -251,8 +256,13 @@ struct PaymentCheckoutView: View {
     }
 
     private func cancelCheckout() {
-        onCancelled()
-        dismiss()
+        guard !tokenizingCard else { return }
+        Task {
+            if await viewModel.cancelCheckout() {
+                onCancelled()
+                dismiss()
+            }
+        }
     }
 
     // MARK: - Seleção de método

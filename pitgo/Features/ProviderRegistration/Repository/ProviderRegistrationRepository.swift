@@ -37,6 +37,10 @@ final class ProviderRegistrationRepository {
 
     // MARK: - Catálogo (delegado — compartilhado com a Home)
 
+    func transportCatalog() async throws -> TransportCatalog {
+        try await client.rpc("get_guincho_transport_catalog").execute().value
+    }
+
     func fetchCategories() async -> LoadState<[ServiceCategory]> {
         await catalogRepository.fetchCategories()
     }
@@ -173,7 +177,7 @@ final class ProviderRegistrationRepository {
                 cnpj: command.company.cnpj,
                 location_mode: command.locationMode.rawValue,
                 provider_kind: command.providerKind.rawValue,
-                vehicle: command.vehicle.map { ProviderVehiclePayload(plate: $0.plate, make: $0.make, model: $0.model, color: $0.color) }
+                vehicle: command.vehicle.map { ProviderVehiclePayload(plate: $0.plate, make: $0.make, model: $0.model, color: $0.color, guincho_size_id: $0.guinchoSizeID) }
             ),
             p_address: AddressPayload(
                 street: command.address.street,

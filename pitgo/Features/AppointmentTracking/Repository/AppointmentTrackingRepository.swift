@@ -33,6 +33,7 @@ final class AppointmentTrackingRepository {
     private let client: SupabaseClient
     private var channel: RealtimeChannelV2?
     private var subscription: RealtimeSubscription?
+    private var connectionID = UUID()
 
     init(client: SupabaseClient) {
         self.client = client
@@ -44,7 +45,10 @@ final class AppointmentTrackingRepository {
         appointmentID: UUID,
         onEvent: @escaping @Sendable (BroadcastLocationPayload) -> Void
     ) async -> AppointmentProviderLocationSnapshot? {
+        let connectionID = UUID()
+        self.connectionID = connectionID
         await client.realtimeV2.setAuth()
+        guard self.connectionID == connectionID, !Task.isCancelled else { return nil }
 
         let channel = client.realtimeV2.channel("appointment-location:\(appointmentID)") { config in
             config.isPrivate = true
@@ -52,15 +56,15 @@ final class AppointmentTrackingRepository {
         self.channel = channel
 
         subscription = channel.onBroadcast(event: "*") { payload in
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            guard let data = try? JSONEncoder().encode(payload),
-                  let decoded = try? decoder.decode(BroadcastLocationPayload.self, from: data) else { return }
-            onEvent(decoded)
+            // Broadcasts are wake-up signals: current INSERT/UPDATE/DELETE/ENDED payloads
+            // have different row shapes. Always read the authoritative RPC snapshot.
+            onEvent(BroadcastLocationPayload(event: "REFRESH", latitude: nil, longitude: nil,
+                accuracyM: nil, capturedAt: nil, publishedAt: nil, version: nil))
         }
 
         try? await channel.subscribeWithError()
 
+        guard self.connectionID == connectionID, !Task.isCancelled else { return nil }
         return await fetchSnapshot(appointmentID: appointmentID)
     }
 
@@ -72,11 +76,26 @@ final class AppointmentTrackingRepository {
             .value
     }
 
-    func disconnect() async {
-        subscription = nil
-        if let channel {
-            await client.realtimeV2.removeChannel(channel)
+    func publishClientLocation(appointmentID: UUID, fix: DeviceLocationFix) async throws {
+        struct Params: Encodable {
+            let p_appointment_id: UUID
+            let p_latitude: Double
+            let p_longitude: Double
+            let p_accuracy_m: Double
+            let p_captured_at: Date
         }
+        try await client.rpc("publish_client_location", params: Params(p_appointment_id: appointmentID,
+            p_latitude: fix.latitude, p_longitude: fix.longitude,
+            p_accuracy_m: fix.horizontalAccuracy, p_captured_at: fix.timestamp)).execute()
+    }
+
+    func disconnect() async {
+        connectionID = UUID()
+        subscription = nil
+        let previousChannel = channel
         channel = nil
+        if let previousChannel {
+            await client.realtimeV2.removeChannel(previousChannel)
+        }
     }
 }

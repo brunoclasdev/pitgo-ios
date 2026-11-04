@@ -54,7 +54,16 @@ struct VehicleFormView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    textField(.brand, label: "Marca", keyboard: .default)
+                    Picker("Categoria para transporte", selection: $viewModel.transportCategoryID) {
+                        Text("Selecionar categoria").tag(UUID?.none)
+                        ForEach(viewModel.categories) { Text($0.name).tag(Optional($0.id)) }
+                    }
+                    Text("Informe a categoria para solicitar guincho, incluindo micro-ônibus.").font(.caption)
+                    if viewModel.catalogFailed {
+                        Button("Tentar carregar categorias") { Task { await viewModel.loadCatalog() } }
+                    }
+                    VehicleMakePicker(selection: Binding(get: { viewModel.state.input.brand }, set: { viewModel.update(.brand, text: $0) }))
+                    if viewModel.state.fieldErrors[.brand] != nil { Text("Selecione a marca.").foregroundStyle(.red) }
                     textField(.model, label: "Modelo", keyboard: .default)
                     textField(.version, label: "Versão (opcional)", keyboard: .default)
                     textField(.manufactureYear, label: "Ano de fabricação (opcional)", keyboard: .numberPad)
@@ -95,6 +104,7 @@ struct VehicleFormView: View {
                 }
             }
         }
+        .task { await viewModel.loadCatalog() }
         .background(tokens.background)
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Cadastrar veículo")

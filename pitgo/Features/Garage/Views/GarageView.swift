@@ -107,6 +107,14 @@ struct GarageView: View {
                         isChanging: changingID == vehicle.id,
                         onSelectPrimary: { viewModel.selectPrimary(vehicle.id) }
                     )
+                    NavigationLink {
+                        VehicleCategoryEditor(vehicle: vehicle, repository: repository) {
+                            Task { await viewModel.load() }
+                        }
+                    } label: {
+                        Label(vehicle.transportCategoryID == nil ? "Completar categoria para guincho" : "Editar categoria de transporte", systemImage: "car.side")
+                    }
+                    .disabled(changingID != nil)
                 }
                 addButton
             }

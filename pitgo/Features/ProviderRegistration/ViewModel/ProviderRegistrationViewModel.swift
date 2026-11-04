@@ -12,6 +12,16 @@ import Foundation
 
 @MainActor
 final class ProviderRegistrationViewModel: ObservableObject {
+    @Published private(set) var guinchoSizes: [GuinchoSize] = []
+    @Published private(set) var transportCatalogFailed = false
+    func loadTransportCatalog() async {
+        do { guinchoSizes = try await repository.transportCatalog().sizes; transportCatalogFailed = false }
+        catch { transportCatalogFailed = true }
+    }
+    func selectGuinchoSize(_ id: UUID?) {
+        guard let id, guinchoSizes.contains(where: { $0.id == id }) else { return }
+        updateEditing { $0.draft.guinchoSizeID = id; $0.fieldErrors[.vehicle(.size)] = nil }
+    }
     @Published private(set) var state: ProviderRegistrationUiState = .loading
 
     private let repository: ProviderRegistrationRepository

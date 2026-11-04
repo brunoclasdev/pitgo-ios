@@ -3,7 +3,7 @@ import Foundation
 // Standalone network doubles: exercise the production VM without broadcasts or real requests.
 enum MobileDispatchFailureReason { case offline, timeout, sessionExpired, paymentRequired, notFound, serviceUnavailable, contract, unknown }
 enum MobileDispatchOperationResult { case snapshot(MobileDispatchSnapshot), noActiveFlow, failure(MobileDispatchFailureReason) }
-enum PaymentStatusResult { case found(UUID, PaymentStatus, PaymentMethodKind), notFound }
+enum PaymentStatusResult { case found(UUID, PaymentStatus, PaymentMethodKind, Int), notFound }
 enum PaymentRefundOutcome { case resolved(PaymentStatus), failure }
 @MainActor protocol PaymentGateway {
     func status(requestID: UUID) async -> PaymentStatusResult
@@ -15,6 +15,7 @@ enum PaymentRefundOutcome { case resolved(PaymentStatus), failure }
 }
 enum DeviceLocationServiceStatus { static var isEnabled: Bool { true } }
 enum LocationAuthorization { case denied, restricted, notDetermined, authorizedWhenInUse, authorizedAlways }
+typealias DeviceLocationFix = TestFix
 struct TestFix { let latitude: Double; let longitude: Double; let horizontalAccuracy: Double }
 enum FixResult { case success(TestFix), permissionDenied, serviceDisabled, timeout, failure }
 @MainActor final class DeviceLocationRepository {
@@ -25,10 +26,11 @@ enum FixResult { case success(TestFix), permissionDenied, serviceDisabled, timeo
 @MainActor final class MobileDispatchRepository {
     var snapshot: MobileDispatchSnapshot
     var offline = false
+    var noActiveFlow = false
     var reads = 0
     var requestedAppointment: UUID?
     init(_ snapshot: MobileDispatchSnapshot) { self.snapshot = snapshot }
-    func getActiveDispatch() async -> MobileDispatchOperationResult { .snapshot(snapshot) }
+    func getActiveDispatch() async -> MobileDispatchOperationResult { noActiveFlow ? .noActiveFlow : .snapshot(snapshot) }
     func getGuinchoSnapshot(appointmentID: UUID) async -> MobileDispatchOperationResult {
         reads += 1; requestedAppointment = appointmentID
         return offline ? .failure(.offline) : .snapshot(snapshot)
@@ -78,6 +80,17 @@ enum FixResult { case success(TestFix), permissionDenied, serviceDisabled, timeo
         try await Task.sleep(nanoseconds: 3_200_000_000)
         precondition(repository.reads == reads)
         vm.stop()
+        let paidRepository = MobileDispatchRepository(repository.snapshot)
+        paidRepository.noActiveFlow = true
+        let paidVM = ClientMobileDispatchViewModel(serviceID: serviceID, repository: paidRepository,
+            paymentRepository: NoPayments(), locationRepository: DeviceLocationRepository())
+        paidVM.start()
+        try await Task.sleep(nanoseconds: 100_000_000)
+        guard case .paymentRequired = paidVM.state else { preconditionFailure("Checkout should be presented") }
+        paidVM.beginPaidSearch(searchID: UUID())
+        guard case .restoring = paidVM.state else { preconditionFailure("Approval must close checkout before GPS/network requests finish") }
+        paidVM.stop()
+        print("PASS: payment approval leaves checkout synchronously before loading GPS/search")
         print("PASS: acceptance without realtime opens checkout; offline preserves state; terminal snapshot stops polling")
     }
 }

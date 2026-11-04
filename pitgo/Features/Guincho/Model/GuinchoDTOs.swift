@@ -31,6 +31,9 @@ struct GuinchoProviderDTO: Decodable {
     let longitude: Double
     let distanceMeters: Double
     let ratingSummary: ProviderRatingSummary?
+    let dispatchVehicleID: UUID?
+    let sizeID: UUID?
+    let sizeName: String?
 
     enum CodingKeys: String, CodingKey {
         case providerID = "provider_id"
@@ -39,6 +42,9 @@ struct GuinchoProviderDTO: Decodable {
         case latitude, longitude
         case distanceMeters = "distance_meters"
         case ratingSummary = "rating_summary"
+        case dispatchVehicleID = "dispatch_vehicle_id"
+        case sizeID = "size_id"
+        case sizeName = "size_name"
     }
 
     func domain() -> GuinchoProvider {
@@ -48,7 +54,8 @@ struct GuinchoProviderDTO: Decodable {
             name: displayName,
             coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
             distanceMeters: distanceMeters,
-            ratingSummary: ratingSummary?.isValid == true ? ratingSummary : nil
+            ratingSummary: ratingSummary?.isValid == true ? ratingSummary : nil,
+            dispatchVehicleID: dispatchVehicleID, sizeID: sizeID, sizeName: sizeName
         )
     }
 }
@@ -62,6 +69,10 @@ struct GuinchoQuoteDTO: Decodable {
     let currency: String
     let expiresAt: Date
     let durationMinutes: Int?
+    let dispatchVehicleID: UUID?
+    let sizeID: UUID?
+    let sizeName: String?
+    let sizePriceVersion: Int64?
 
     enum CodingKeys: String, CodingKey {
         case quoteID = "quote_id"
@@ -72,6 +83,10 @@ struct GuinchoQuoteDTO: Decodable {
         case currency
         case expiresAt = "expires_at"
         case durationMinutes = "duration_minutes"
+        case dispatchVehicleID = "dispatch_vehicle_id"
+        case sizeID = "size_id"
+        case sizeName = "size_name"
+        case sizePriceVersion = "size_price_version"
     }
 
     init(from decoder: Decoder) throws {
@@ -81,6 +96,10 @@ struct GuinchoQuoteDTO: Decodable {
         providerID = try container.decode(UUID.self, forKey: .providerID)
         providerName = try container.decode(String.self, forKey: .providerName)
         currency = try container.decode(String.self, forKey: .currency)
+        dispatchVehicleID = try container.decodeIfPresent(UUID.self, forKey: .dispatchVehicleID)
+        sizeID = try container.decodeIfPresent(UUID.self, forKey: .sizeID)
+        sizeName = try container.decodeIfPresent(String.self, forKey: .sizeName)
+        sizePriceVersion = try container.decodeIfPresent(Int64.self, forKey: .sizePriceVersion)
         durationMinutes = try container.decodeIfPresent(Int.self, forKey: .durationMinutes)
 
         // O backend pode serializar numeric como número ou texto decimal.
@@ -118,7 +137,8 @@ struct GuinchoQuoteDTO: Decodable {
             providerName: providerName,
             total: customerTotalAmount,
             expiresAt: expiresAt,
-            durationMinutes: durationMinutes
+            durationMinutes: durationMinutes,
+            dispatchVehicleID: dispatchVehicleID, sizeID: sizeID, sizeName: sizeName, sizePriceVersion: sizePriceVersion
         )
     }
 }

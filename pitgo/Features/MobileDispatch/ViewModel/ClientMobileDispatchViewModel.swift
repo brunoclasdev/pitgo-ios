@@ -21,6 +21,7 @@ import Foundation
 
 @MainActor
 final class ClientMobileDispatchViewModel: ObservableObject {
+    @Published private(set) var lastFix: DeviceLocationFix?
     @Published private(set) var state: ClientMobileDispatchUiState = .restoring
     /// Tick de 1s só para recompor o countdown (`014` FR-001) — nunca decide uma transição sozinho.
     @Published private(set) var localNow: Date = .init()
@@ -108,6 +109,8 @@ final class ClientMobileDispatchViewModel: ObservableObject {
     /// contra `start_mobile_dispatch` real nesta sessão).
     func beginPaidSearch(searchID: UUID) {
         reservedPaidSearchID = searchID
+        // Close checkout immediately; GPS and dispatch load over the existing map.
+        state = .restoring
         Task { [weak self] in
             await self?.beginNewSearch(paidSearchID: searchID)
         }
@@ -131,6 +134,7 @@ final class ClientMobileDispatchViewModel: ObservableObject {
 
         switch await locationRepository.requestOneShotFix(timeout: 15) {
         case let .success(fix):
+            lastFix = fix
             let result = await repository.startSearch(
                 searchID: paidSearchID,
                 serviceID: serviceID,
@@ -357,7 +361,7 @@ final class ClientMobileDispatchViewModel: ObservableObject {
     private func checkRefund(searchID: UUID) {
         Task { [weak self] in
             guard let self else { return }
-            guard case let .found(paymentID, status, _) = await self.paymentRepository.status(requestID: searchID) else { return }
+            guard case let .found(paymentID, status, _, _) = await self.paymentRepository.status(requestID: searchID) else { return }
             switch status {
             case .refundPending:
                 if case let .resolved(finalStatus) = await self.paymentRepository.refund(paymentID: paymentID) {

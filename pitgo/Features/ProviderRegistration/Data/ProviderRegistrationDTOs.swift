@@ -138,6 +138,7 @@ struct ProviderVehiclePayload: Encodable {
     let make: String
     let model: String
     let color: String
+    let guincho_size_id: UUID?
 }
 
 struct AddressPayload: Encodable {

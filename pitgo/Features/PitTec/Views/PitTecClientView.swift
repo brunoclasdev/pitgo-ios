@@ -66,7 +66,14 @@ struct PitTecClientView: View {
     }
 
     var body: some View {
-        content
+        ZStack(alignment: .bottom) {
+            persistentMap.ignoresSafeArea(edges: .bottom)
+            if isTracking {
+                content
+            } else {
+                ServiceMapCard { content }
+            }
+        }
             .background(tokens.background)
             .navigationTitle("PitTec")
             .navigationBarTitleDisplayMode(.inline)
@@ -206,17 +213,37 @@ struct PitTecClientView: View {
     /// ausência de PitTec só é comunicada depois que o cliente toca em "Chamar PitTec" e a busca
     /// de fato se esgota (`terminalState`, `status == .exhausted`), nunca antes disso.
     private func discoveringState(_ markers: [PitTecMarker]) -> some View {
-        VStack(spacing: 0) {
-            PitGoMapView(
-                annotations: markers.map {
-                    PitGoMapAnnotationItem(id: $0.markerID, coordinate: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), symbolName: "wrench.and.screwdriver.fill")
-                },
-                centerCoordinate: clientCoordinate,
-                showsUserLocation: true
-            )
-            .overlay(alignment: .bottomLeading) { MapAttributionView() }
-            callButton
-        }
+        callButton
+    }
+
+    private var isTracking: Bool {
+        guard case let .content(snapshot, _) = viewModel.state else { return false }
+        return snapshot.status == .accepted || snapshot.status == .inProgress
+    }
+
+    private var persistentMap: some View {
+        let context = viewModel.routeContext
+        let points: [CLLocationCoordinate2D] = context.map { [
+            .init(latitude: $0.providerLatitude, longitude: $0.providerLongitude),
+            .init(latitude: $0.clientLatitude, longitude: $0.clientLongitude)
+        ] } ?? []
+        let annotations: [PitGoMapAnnotationItem] = {
+            if points.count == 2 {
+                return [PitGoMapAnnotationItem(id: "pittec", coordinate: points[0], title: "PitTec", symbolName: "wrench.and.screwdriver.fill"),
+                        PitGoMapAnnotationItem(id: "client", coordinate: points[1], title: "Você")]
+            }
+            if case let .discovering(markers) = viewModel.state {
+                return markers.map { PitGoMapAnnotationItem(id: $0.markerID,
+                    coordinate: .init(latitude: $0.latitude, longitude: $0.longitude), symbolName: "wrench.and.screwdriver.fill") }
+            }
+            return []
+        }()
+        return PitGoMapView(annotations: annotations, centerCoordinate: clientCoordinate, centerTrigger: mapFitTrigger,
+            showsUserLocation: true, fitCoordinates: points.count >= 2 ? points : nil,
+            fitTrigger: mapFitTrigger, fitBottomPadding: max(summaryHeight + 16, 180), routeLine: points)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .topLeading) { MapAttributionView().padding(12) }
+            .overlay(alignment: .topTrailing) { recenterButton }
     }
 
     /// `020` FR-001: posição do cliente já obtida na descoberta (`viewModel.lastFix`), reaproveitada
@@ -229,9 +256,7 @@ struct PitTecClientView: View {
     /// prestador, com uma mensagem (e ações opcionais) sobrepostas — usado tanto na descoberta sem
     /// PitTec quanto na busca esgotada, nunca como tela substituta do mapa.
     private func mapCenteredOnClient(icon: String, message: String, @ViewBuilder actions: () -> some View) -> some View {
-        PitGoMapView(annotations: [], centerCoordinate: clientCoordinate, showsUserLocation: true)
-            .overlay(alignment: .bottomLeading) { MapAttributionView() }
-            .overlay {
+        Group {
                 VStack(spacing: 12) {
                     Image(systemName: icon)
                         .font(.system(size: 32))
@@ -472,40 +497,8 @@ struct PitTecClientView: View {
     /// enquadramento inicial roda uma única vez por entrada neste estado (`mapFitTrigger`); o botão
     /// de recentralizar e nenhum outro evento de localização o repetem sozinhos (FR-014).
     private func acceptedState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
-        ZStack(alignment: .bottom) {
-            if let context = viewModel.routeContext {
-                PitGoMapView(
-                    annotations: [
-                        PitGoMapAnnotationItem(id: "pittec", coordinate: CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude), title: snapshot.provider?.displayName, symbolName: "wrench.and.screwdriver.fill"),
-                        PitGoMapAnnotationItem(id: "client", coordinate: CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude), title: "Você"),
-                    ],
-                    // `021` FR-008: enquadra cliente + PitTec juntos, em vez de depender do zoom padrão.
-                    fitCoordinates: [
-                        CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
-                        CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude),
-                    ],
-                    fitTrigger: mapFitTrigger,
-                    fitBottomPadding: summaryHeight + 16,
-                    routeLine: [
-                        CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
-                        CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude),
-                    ]
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .bottomLeading) { MapAttributionView() }
-                .overlay(alignment: .topTrailing) { recenterButton }
-                .onAppear { if mapFitTrigger == 0 { mapFitTrigger = 1 } }
-            } else {
-                VStack {
-                    Spacer()
-                    ProgressView("Aguardando localização…")
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            summaryPanel(snapshot, pendingAction: pendingAction)
-        }
-        .onPreferenceChange(SummaryHeightPreferenceKey.self) { summaryHeight = $0 }
+        summaryPanel(snapshot, pendingAction: pendingAction)
+            .onPreferenceChange(SummaryHeightPreferenceKey.self) { summaryHeight = $0 }
     }
 
     private var recenterButton: some View {

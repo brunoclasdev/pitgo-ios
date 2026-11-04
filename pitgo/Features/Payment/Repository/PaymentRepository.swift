@@ -19,7 +19,7 @@ enum PaymentCreationOutcome {
 }
 
 enum PaymentStatusResult {
-    case found(paymentID: UUID, status: PaymentStatus, method: PaymentMethodKind)
+    case found(paymentID: UUID, status: PaymentStatus, method: PaymentMethodKind, details: PaymentStatusDetails = PaymentStatusDetails())
     case notFound
     case failure(PaymentFailureReason)
 }
@@ -98,10 +98,19 @@ final class PaymentRepository {
             guard let paymentID = envelope.paymentID, let status = envelope.status else {
                 return .failure(.unknown)
             }
-            return .found(paymentID: paymentID, status: status, method: envelope.method ?? .savedCard)
+            return .found(paymentID: paymentID, status: status, method: envelope.method ?? .savedCard, details: envelope.details)
         } catch {
             return .failure(classify(error))
         }
+    }
+
+    func recoverable() async -> PaymentStatusResult {
+        do {
+            let envelope: PaymentStatusEnvelope = try await client.rpc("get_recoverable_payment").execute().value
+            guard envelope.isFound else { return .notFound }
+            guard let paymentID = envelope.paymentID, let status = envelope.status else { return .failure(.unknown) }
+            return .found(paymentID: paymentID, status: status, method: envelope.method ?? .savedCard, details: envelope.details)
+        } catch { return .failure(classify(error)) }
     }
 
     /// Chamado pelo app assim que observa `REFUND_PENDING` (não há trigger/cron server-side que
@@ -117,6 +126,40 @@ final class PaymentRepository {
         } catch {
             return .failure(classify(error))
         }
+    }
+
+    func history(before: PaymentHistoryRecord? = nil) async throws -> [PaymentHistoryRecord] {
+        struct Params: Encodable {
+            let p_limit = 20
+            let p_before: String?
+            let p_before_id: UUID?
+        }
+        return try await client.rpc("get_payment_history", params: Params(
+            p_before: before?.createdAtRaw, p_before_id: before?.createdAtRaw == nil ? nil : before?.id
+        )).execute().value
+    }
+
+    /// Cancellation must be acknowledged by the server before closing checkout.
+    func cancel(paymentID: UUID) async -> PaymentRefundOutcome {
+        do {
+            let response: PaymentCancellationResponse = try await client.functions.invoke(
+                "mp-cancel-payment",
+                options: FunctionInvokeOptions(body: RefundPaymentRequestBody(payment_id: paymentID))
+            )
+            guard response.cancelRequested == true || [.cancelled, .refundPending, .refunded, .refundFailed].contains(response.status) else {
+                return .failure(.unknown)
+            }
+            return .resolved(response.status)
+        } catch { return .failure(classify(error)) }
+    }
+
+    func cancelUnpaidGuincho(requestID: UUID) async -> Bool {
+        struct Response: Decodable { let outcome: String }
+        do {
+            let response: Response = try await client.rpc("cancel_unpaid_guincho_request",
+                params: GetPaymentStatusParams(p_request_id: requestID)).execute().value
+            return response.outcome == "CANCELLED"
+        } catch { return false }
     }
 
     // MARK: - Realtime

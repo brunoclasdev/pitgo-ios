@@ -17,6 +17,7 @@ final class GuinchoRouteViewModel: ObservableObject {
     private var generation = UUID()
     private var requestedInitial = false
     private var retryTask: Task<Void, Never>?
+    private var accessDenied = false
 
     init(repository: GuinchoRouteRepository, tracker: ProviderDiscoveryTracker) {
         self.repository = repository
@@ -62,6 +63,7 @@ final class GuinchoRouteViewModel: ObservableObject {
         route = nil
         currentFixes = []
         requestedInitial = false
+        accessDenied = false
         state = .closed
     }
 
@@ -75,23 +77,26 @@ final class GuinchoRouteViewModel: ObservableObject {
               let last = currentFixes.last, last.timestamp.timeIntervalSince(first.timestamp) >= 4,
               currentFixes.allSatisfy({ $0.horizontalAccuracy <= 35 && Date().timeIntervalSince($0.timestamp) <= 10 }) else { return }
         let path = route.coordinates
+        let token = generation
         let check = Task.detached(priority: .utility) { Self.distance(fix: last, to: path) > max(50, 2 * last.horizontalAccuracy) }
         Task { [weak self] in
-            guard await check.value, let self, self.route?.routeVersion == route.routeVersion else { return }
+            guard await check.value, let self, self.generation == token, self.route?.routeVersion == route.routeVersion else { return }
             self.refresh(reason: .deviation)
         }
     }
 
     private func refresh(reason: GuinchoRouteReason) {
-        guard let appointmentID, refreshTask == nil else { return }
+        guard let appointmentID, refreshTask == nil, !accessDenied else { return }
         if reason == .initial && requestedInitial { return }
+        retryTask?.cancel()
+        retryTask = nil
         requestedInitial = true
         let token = generation
         let knownVersion = route?.routeVersion ?? 0
         state = .loading(route)
         refreshTask = Task { [weak self, repository] in
             guard let self else { return }
-            defer { self.refreshTask = nil }
+            defer { if self.generation == token { self.refreshTask = nil } }
             do {
                 let payload = try await repository.refresh(appointmentID: appointmentID, reason: reason, knownVersion: knownVersion)
                 guard self.generation == token, self.appointmentID == appointmentID else { return }
@@ -104,25 +109,34 @@ final class GuinchoRouteViewModel: ObservableObject {
                     self.state = .waiting(self.route, "Atualização do percurso em andamento…")
                     self.scheduleRetry(after: Double(min(max(payload.retryAfterMs ?? 750, 500), 1_000)) / 1_000)
                 } else {
-                    let message = payload.code == "LOCATION_NOT_READY" || payload.code == "LOCATION_UNCERTAIN"
-                        ? "Aguardando uma localização precisa para traçar o percurso."
-                        : "Não foi possível atualizar o percurso. A última rota continua disponível."
-                    self.state = .unavailable(self.route, message)
-                    self.scheduleRetry(after: Double(min(max(payload.retryAfterMs ?? 5_000, 1_000), 30_000)) / 1_000)
+                    let failure = GuinchoRouteFailure(status: 200, code: payload.code ?? "CONTRACT",
+                        retryable: payload.retryable ?? false, retryAfterMs: payload.retryAfterMs)
+                    self.apply(failure)
                 }
             } catch let failure as GuinchoRouteFailure {
                 guard self.generation == token else { return }
-                guard failure.retryable else {
-                    self.stop()
-                    return
-                }
-                self.state = .unavailable(self.route, "Não foi possível atualizar o percurso (\(failure.code)). A última rota continua disponível.")
-                self.scheduleRetry(after: Double(min(max(failure.retryAfterMs ?? 5_000, 1_000), 30_000)) / 1_000)
+                self.apply(failure)
+            } catch is DecodingError {
+                guard self.generation == token else { return }
+                self.apply(GuinchoRouteFailure(status: 200, code: "CONTRACT", retryable: false, retryAfterMs: nil))
             } catch {
                 guard self.generation == token else { return }
-                self.state = .unavailable(self.route, "Não foi possível atualizar o percurso. Tente novamente.")
+                self.state = .unavailable(self.route, "O trajeto foi iniciado. Aguardando conexão para atualizar o percurso.")
                 self.scheduleRetry(after: 5)
             }
+        }
+    }
+
+    private func apply(_ failure: GuinchoRouteFailure) {
+        if failure.accessDenied {
+            accessDenied = true
+            retryTask?.cancel()
+            retryTask = nil
+            route = nil
+        }
+        state = .unavailable(route, failure.message)
+        if failure.shouldRetry {
+            scheduleRetry(after: Double(min(max(failure.retryAfterMs ?? 5_000, 500), 30_000)) / 1_000)
         }
     }
 
@@ -136,18 +150,18 @@ final class GuinchoRouteViewModel: ObservableObject {
         }
     }
 
-    nonisolated private static func distance(fix: DeviceLocationFix, to path: [CLLocationCoordinate2D]) -> Double {
+    nonisolated static func distance(fix: DeviceLocationFix, to path: [CLLocationCoordinate2D]) -> Double {
         guard path.count >= 2 else { return .infinity }
         let latScale = 111_320.0
         let lonScale = latScale * cos(fix.latitude * .pi / 180)
-        let px = fix.longitude * lonScale, py = fix.latitude * latScale
+        let px = 0.0, py = 0.0
         return zip(path, path.dropFirst()).map { a, b in
             func normalizedDelta(_ longitude: Double) -> Double {
                 let delta = (longitude - fix.longitude + 540).truncatingRemainder(dividingBy: 360) - 180
                 return delta * lonScale
             }
-            let ax = normalizedDelta(a.longitude), ay = a.latitude * latScale
-            let bx = normalizedDelta(b.longitude), by = b.latitude * latScale
+            let ax = normalizedDelta(a.longitude), ay = (a.latitude - fix.latitude) * latScale
+            let bx = normalizedDelta(b.longitude), by = (b.latitude - fix.latitude) * latScale
             let dx = bx - ax, dy = by - ay
             let t = min(max(((px - ax) * dx + (py - ay) * dy) / max(dx * dx + dy * dy, 1), 0), 1)
             return hypot(px - (ax + t * dx), py - (ay + t * dy))

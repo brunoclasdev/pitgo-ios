@@ -14,6 +14,7 @@ struct PitTecIncomingRequestView: View {
     @Environment(\.pitGoTokens) private var tokens
     @StateObject private var viewModel: PitTecIncomingRequestViewModel
     @State private var showCancellationSheet = false
+    @State private var mapCoordinate: CLLocationCoordinate2D?
 
     let onBack: () -> Void
     let onSessionExpired: () -> Void
@@ -30,7 +31,10 @@ struct PitTecIncomingRequestView: View {
     }
 
     var body: some View {
-        content
+        ZStack {
+            providerMap.ignoresSafeArea(edges: .bottom)
+            ServiceMapCard { content }
+        }
             .background(tokens.background)
             .navigationTitle("Chamada PitTec")
             .navigationBarTitleDisplayMode(.inline)
@@ -44,7 +48,10 @@ struct PitTecIncomingRequestView: View {
                     .accessibilityLabel("Voltar")
                 }
             }
-            .task { viewModel.start() }
+            .task {
+                viewModel.start()
+                await locateMap()
+            }
             .onDisappear { viewModel.stop() }
             .onChange(of: isSessionExpired) { expired in
                 if expired { onSessionExpired() }
@@ -55,6 +62,40 @@ struct PitTecIncomingRequestView: View {
                 }
                 .interactiveDismissDisabled(isPendingCancel)
             }
+    }
+
+    private var providerMap: some View {
+        // The background may show the provider before payment; client coordinates remain gated.
+        let context: PitTecRouteContext? = {
+            guard case let .reserved(snapshot, _) = viewModel.state,
+                  snapshot.appointment?.status == .accepted || snapshot.appointment?.status == .inProgress else { return nil }
+            return viewModel.routeContext
+        }()
+        let points: [CLLocationCoordinate2D] = context.map { [
+            .init(latitude: $0.providerLatitude, longitude: $0.providerLongitude),
+            .init(latitude: $0.clientLatitude, longitude: $0.clientLongitude)
+        ] } ?? []
+        let annotations: [PitGoMapAnnotationItem] = points.count == 2 ? [
+            .init(id: "provider", coordinate: points[0], title: "Você", symbolName: "wrench.and.screwdriver.fill"),
+            .init(id: "client", coordinate: points[1], title: "Cliente")
+        ] : []
+        return PitGoMapView(annotations: annotations, centerCoordinate: mapCoordinate,
+            showsUserLocation: true, fitCoordinates: points.count >= 2 ? points : nil,
+            fitBottomPadding: 340, routeLine: points)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .topLeading) { MapAttributionView().padding(12) }
+    }
+
+    private func locateMap() async {
+        let location = DeviceLocationRepository()
+        switch location.authorizationStatus {
+        case .denied, .restricted: return
+        case .notDetermined: location.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse: break
+        }
+        if case let .success(fix) = await location.requestOneShotFix(), !Task.isCancelled {
+            mapCoordinate = .init(latitude: fix.latitude, longitude: fix.longitude)
+        }
     }
 
     private var isSessionExpired: Bool {
@@ -89,8 +130,7 @@ struct PitTecIncomingRequestView: View {
         case let .incoming(snapshot, pendingAction):
             incomingState(snapshot, pendingAction: pendingAction)
         case let .reserved(snapshot, pendingAction):
-            // `021`/migration `20260913010000`: nenhum mapa de acompanhamento antes de `ACCEPTED`
-            // (cliente ainda revisando o orçamento ou pagando).
+            // Client tracking remains gated until payment; the provider's map stays visible.
             switch snapshot.appointment?.status {
             case .awaitingClientConfirmation, .awaitingPayment:
                 awaitingConfirmationState(snapshot)
@@ -105,7 +145,7 @@ struct PitTecIncomingRequestView: View {
     }
 
     private func incomingState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
-        ScrollView {
+        Group {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Nova chamada PitTec")
                     .font(PitGoTypography.sectionTitle)
@@ -156,8 +196,7 @@ struct PitTecIncomingRequestView: View {
         }
     }
 
-    /// `021`/migration `20260913010000`: tela de espera entre o aceite e `ACCEPTED` — sem ações,
-    /// sem mapa. Sai sozinha assim que o status muda pelo mesmo canal Realtime já usado
+    /// Card de espera entre o aceite e `ACCEPTED`, sobre o mapa do próprio prestador. Sai sozinha assim que o status muda pelo mesmo canal Realtime já usado
     /// (`subscribeToProvider`), sem nenhum polling adicional.
     private func awaitingConfirmationState(_ snapshot: PitTecDispatchSnapshot) -> some View {
         let paymentWasRejected = snapshot.payment?.status == "REJECTED"
@@ -201,34 +240,7 @@ struct PitTecIncomingRequestView: View {
     }
 
     private func reservedState(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {
-        VStack(spacing: 0) {
-            if let context = viewModel.routeContext {
-                PitGoMapView(
-                    annotations: [
-                        PitGoMapAnnotationItem(id: "pittec", coordinate: CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude), title: "Você", symbolName: "wrench.and.screwdriver.fill"),
-                        PitGoMapAnnotationItem(id: "client", coordinate: CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude), title: "Cliente"),
-                    ],
-                    // `021` FR-008: enquadra PitTec + cliente juntos, em vez de depender do zoom padrão.
-                    fitCoordinates: [
-                        CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
-                        CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude),
-                    ],
-                    routeLine: [
-                        CLLocationCoordinate2D(latitude: context.providerLatitude, longitude: context.providerLongitude),
-                        CLLocationCoordinate2D(latitude: context.clientLatitude, longitude: context.clientLongitude),
-                    ]
-                )
-                .overlay(alignment: .bottomLeading) { MapAttributionView() }
-            } else {
-                VStack {
-                    Spacer()
-                    ProgressView("Aguardando localização…")
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            reservedActions(snapshot, pendingAction: pendingAction)
-        }
+        reservedActions(snapshot, pendingAction: pendingAction)
     }
 
     private func reservedActions(_ snapshot: PitTecDispatchSnapshot, pendingAction: PendingDispatchAction?) -> some View {

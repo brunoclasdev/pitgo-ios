@@ -53,6 +53,7 @@ struct ProviderRegistrationDraft {
     var vehicleMake = ""
     var vehicleModel = ""
     var vehicleColor = ""
+    var guinchoSizeID: UUID?
     var locationMode: ProviderLocationMode = .fixed
     /// `026` FR-001: categoria principal única do prestador Fixo; todas as ofertas pertencem a ela.
     /// `nil` para Móvel/PitTec (não escolhem categoria).
@@ -157,7 +158,7 @@ enum OfferField: Hashable, CaseIterable {
     case service, price, duration, description
 }
 
-enum ProviderVehicleField: Hashable { case plate, make, model, color }
+enum ProviderVehicleField: Hashable { case plate, make, model, color, size }
 
 /// Identificado por `localID` (nunca por índice) para que remoção/reordenação não mova erro/foco
 /// para outra oferta.
@@ -232,6 +233,7 @@ struct NormalizedProviderVehicle {
     let make: String
     let model: String
     let color: String
+    var guinchoSizeID: UUID? = nil
 }
 
 // MARK: - Resumo (apresentação — nenhum ID interno; CNPJ mascarado pela View)

@@ -71,7 +71,7 @@ final class PitTecHomeViewModel: ObservableObject {
         self.locationRepository = locationRepository
         accountID = snapshot.accountID
         state = .content(snapshot)
-        discoveryTracker = ProviderDiscoveryTracker(locationRepository: locationRepository, dispatchRepository: dispatchRepository)
+        discoveryTracker = ProviderDiscoveryTracker(locationRepository: locationRepository, dispatchRepository: dispatchRepository, accountID: snapshot.accountID)
         discoveryTracker.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)

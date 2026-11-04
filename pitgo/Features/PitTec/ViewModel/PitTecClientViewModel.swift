@@ -35,6 +35,8 @@ final class PitTecClientViewModel: ObservableObject {
     /// havia nenhum fallback, ao contrário do checkout de pagamento (`observeApproval`). Sem isso, a
     /// confirmação do orçamento expira sozinha em 2 minutos (regra do backend) sem o cliente nunca
     /// ter visto o card. Mesmo padrão de poll de segurança já usado em `PaymentCheckoutViewModel`.
+    private var clientLocationTask: Task<Void, Never>?
+    private var publishingAppointmentID: UUID?
     private var pollTask: Task<Void, Never>?
     private let pollInterval: TimeInterval = 5
 
@@ -67,6 +69,10 @@ final class PitTecClientViewModel: ObservableObject {
     }
 
     func stop() {
+        isStarted = false
+        clientLocationTask?.cancel()
+        clientLocationTask = nil
+        publishingAppointmentID = nil
         stopPolling()
         repository.disconnectAll()
     }
@@ -307,6 +313,9 @@ final class PitTecClientViewModel: ObservableObject {
         acceptedRevision = snapshot.revision
         lastConfirmedSnapshot = snapshot
         if snapshot.status.isTerminal {
+            clientLocationTask?.cancel()
+            clientLocationTask = nil
+            publishingAppointmentID = nil
             state = .terminal(snapshot)
             routeContext = nil
             stopPolling()
@@ -323,7 +332,16 @@ final class PitTecClientViewModel: ObservableObject {
     private func refreshRouteContextIfNeeded(_ snapshot: PitTecDispatchSnapshot) {
         guard let appointment = snapshot.appointment, appointment.status == .accepted || appointment.status == .inProgress else {
             routeContext = nil
+            clientLocationTask?.cancel()
+            clientLocationTask = nil
+            publishingAppointmentID = nil
             return
+        }
+        if publishingAppointmentID != appointment.appointmentID {
+            clientLocationTask?.cancel()
+            publishingAppointmentID = appointment.appointmentID
+            let publisher = repository.clientLocationPublisher()
+            clientLocationTask = Task { await publisher.run(appointmentID: appointment.appointmentID) }
         }
         Task { [weak self] in
             guard let self else { return }
@@ -335,6 +353,9 @@ final class PitTecClientViewModel: ObservableObject {
 
     private func applyFailure(_ reason: PitTecFailureReason) {
         if reason == .sessionExpired {
+            clientLocationTask?.cancel()
+            clientLocationTask = nil
+            publishingAppointmentID = nil
             state = .sessionExpired
             stopPolling()
             repository.disconnectAll()
@@ -352,7 +373,7 @@ final class PitTecClientViewModel: ObservableObject {
     private func checkRefund(searchID: UUID) {
         Task { [weak self] in
             guard let self else { return }
-            guard case let .found(paymentID, status, _) = await self.paymentRepository.status(requestID: searchID) else { return }
+            guard case let .found(paymentID, status, _, _) = await self.paymentRepository.status(requestID: searchID) else { return }
             switch status {
             case .refundPending:
                 if case let .resolved(finalStatus) = await self.paymentRepository.refund(paymentID: paymentID) {

@@ -52,6 +52,7 @@ enum PitGoRoute: Hashable {
     /// Substitui `.mobileDispatchNewSearch` como destino desse card (que continua existindo só para
     /// retomar uma busca antiga incompatível, ver FR-019/Assumptions de `028`).
     case guincho(serviceID: UUID)
+    case guinchoSearchResume
 
     /// Solicitação pendente destinada ao provider — aberta automaticamente ao detectar
     /// `get_my_pending_mobile_dispatch` com uma oferta `PENDING`.

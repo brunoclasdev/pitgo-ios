@@ -67,7 +67,7 @@ extension Provider {
 }
 
 final class ProviderDashboardRepository {
-    private let client: SupabaseClient
+    let client: SupabaseClient
 
     init(client: SupabaseClient) {
         self.client = client

@@ -167,7 +167,7 @@ struct GuinchoInspectionView: View {
                         label("Enviar fotos para aprovação")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(viewModel.isSaving || document.summary.requiredPointsReady < 4 || !document.pendingPhotos.isEmpty)
+                    .disabled(viewModel.isSaving || viewModel.hasPendingCapture || viewModel.hasUnrecoverableCapture || document.summary.requiredPointsReady < 4 || !document.pendingPhotos.isEmpty)
                 }
                 if document.closed && !viewModel.versions.isEmpty {
                     ForEach(viewModel.versions) { version in

@@ -36,6 +36,7 @@ struct ProfileView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
+            ScrollView {
             VStack(spacing: 20) {
                 avatar
                 VStack(spacing: 4) {
@@ -51,9 +52,19 @@ struct ProfileView: View {
                         .foregroundStyle(tokens.textSecondary)
                 }
 
+                NavigationLink("Editar cadastro") { RegistrationEditView(client: clientAddressRepository.client) }
                 addressEntry
                 vehicleEntry
                 paymentMethodsEntry
+                NavigationLink {
+                    PaymentHistoryView(repository: PaymentRepository(client: clientAddressRepository.client))
+                } label: {
+                    Label("Histórico de pagamentos", systemImage: "receipt")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(tokens.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
                 Button { path.append(.storeCatalog) } label: {
                     Label("Catálogo de lojas", systemImage: "storefront")
                         .font(PitGoTypography.categoryTitle)
@@ -94,6 +105,7 @@ struct ProfileView: View {
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(tokens.background)
+            }
             .navigationTitle("Perfil")
             .navigationDestination(for: PitGoRoute.self) { route in
                 switch route {
@@ -120,7 +132,7 @@ struct ProfileView: View {
                     StoreCatalogView(repository: storeRepository, ownerStoreID: nil)
                 case .serviceMap, .requestService, .appointmentTracking, .guinchoInspectionReview, .providerAppointmentTracking,
                      .mobileDispatchNewSearch, .mobileDispatchSearch, .providerRequest,
-                     .pitTec, .pitTecProviderRequest, .guincho:
+                     .pitTec, .pitTecProviderRequest, .guincho, .guinchoSearchResume:
                     EmptyView()
                 }
             }

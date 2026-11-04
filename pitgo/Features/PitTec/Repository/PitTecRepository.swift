@@ -67,6 +67,10 @@ final class PitTecRepository {
     /// estáveis do próprio contrato, ex.: `22023`/`INVALID_LOCATION`), então podem ser logados.
     private static let logger = Logger(subsystem: "com.trustarx.pitgo", category: "PitTecRepository")
 
+    func clientLocationPublisher() -> ClientAppointmentLocationPublisher {
+        ClientAppointmentLocationPublisher(repository: AppointmentTrackingRepository(client: client))
+    }
+
     private let client: SupabaseClient
 
     private var searchChannel: RealtimeChannelV2?

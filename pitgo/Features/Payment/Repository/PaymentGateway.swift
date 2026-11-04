@@ -26,7 +26,10 @@ protocol PaymentGateway: AnyObject {
         quoteVersion: Int64?
     ) async -> PaymentCreationOutcome
 
+    func recoverable() async -> PaymentStatusResult
     func status(requestID: UUID) async -> PaymentStatusResult
+    func cancel(paymentID: UUID) async -> PaymentRefundOutcome
+    func cancelUnpaidGuincho(requestID: UUID) async -> Bool
     func refund(paymentID: UUID) async -> PaymentRefundOutcome
     func subscribe(requestID: UUID, onChanged: @escaping @Sendable () -> Void) async
     func unsubscribe() async

@@ -59,6 +59,7 @@ final class PitTecIncomingRequestViewModel: ObservableObject {
     }
 
     func stop() {
+        isStarted = false
         stopCountdown()
         stopPolling()
         repository.disconnectAll()

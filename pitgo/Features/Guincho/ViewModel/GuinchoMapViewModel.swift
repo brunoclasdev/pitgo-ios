@@ -43,6 +43,7 @@ struct GuinchoMapState {
     var draft: GuinchoDraft?
     var failure: GuinchoFailureReason?
     var locationUnavailable: Bool = false
+    var resumedAfterDecline = false
     /// Snapshot devolvido por `contract()` assim que a solicitação é criada — sinal para a View
     /// navegar para o acompanhamento (`013`), nunca renderizado por esta própria tela.
     var checkout: MobileDispatchSnapshot?
@@ -51,7 +52,10 @@ struct GuinchoMapState {
     var fitTrigger: Int = 0
     var fitCoordinates: [CLLocationCoordinate2D]?
 
+    var restoredDestinationAddress: String?
+
     var fullDestinationAddress: String {
+        if let restoredDestinationAddress { return restoredDestinationAddress }
         let parts = destinationAddress.split(separator: ",", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
         let street = parts.first ?? destinationAddress.trimmingCharacters(in: .whitespaces)
         let rest = parts.count > 1 ? parts[1] : ""
@@ -101,8 +105,57 @@ final class GuinchoMapViewModel: ObservableObject {
         self.addressRepository = addressRepository
     }
 
-    func start() {
+    func start() async {
+        let hadCheckout = state.checkout != nil
+        update { $0.checkout = nil; $0.operation = .saving; $0.failure = nil }
         loadVehicles()
+        switch await repository.searchResume() {
+        case let .success(resume) where resume.isResumable:
+            guard let draft = resume.draft else { return }
+            let input = draft.input
+            update {
+                $0.vehicleID = input.vehicleID
+                $0.pickupAddress = input.pickupAddress
+                $0.pickup = input.pickup
+                $0.restoredDestinationAddress = input.destinationAddress
+                $0.destinationAddress = input.destinationAddress
+                let parts = input.destinationAddress.split(separator: ",", maxSplits: 2).map { $0.trimmingCharacters(in: .whitespaces) }
+                if parts.count >= 2 {
+                    $0.destinationNumber = parts[1]
+                    $0.destinationAddress = ([parts[0]] + Array(parts.dropFirst(2))).joined(separator: ", ")
+                } else { $0.destinationNumber = "s/n" }
+                $0.destination = input.destination
+                $0.draft = GuinchoDraft(id: draft.id, revision: draft.revision)
+                $0.stage = .discovery
+                $0.fitCoordinates = [input.pickup, input.destination]
+                $0.fitTrigger += 1
+                $0.resumedAfterDecline = resume.rejected_appointment_id != nil
+            }
+            await discover(GuinchoDraft(id: draft.id, revision: draft.revision))
+            startDiscoveryUpdates()
+        case let .success(resume) where resume.outcome == .active:
+            update { $0.checkout = resume.snapshot }
+        case let .failure(reason): update { $0.failure = reason }
+        case .success where hadCheckout:
+            let vehicles = state.vehicles
+            state = GuinchoMapState()
+            update { $0.vehicles = vehicles; $0.vehicleID = vehicles.first?.id }
+        default: break
+        }
+        update { $0.operation = .idle }
+    }
+
+    func closeSearch() async -> Bool {
+        guard state.operation == .idle, state.checkout == nil else { return false }
+        if state.draft == nil { return true }
+        update { $0.operation = .saving }
+        switch await repository.cancelSearch() {
+        case .success:
+            stopDiscoveryUpdates()
+            update { $0.operation = .idle }
+            return true
+        case let .failure(reason): failed(reason); return false
+        }
     }
 
     func loadVehicles() {
@@ -115,7 +168,6 @@ final class GuinchoMapViewModel: ObservableObject {
             update {
                 $0.vehicles = vehicles
                 if $0.vehicleID == nil { $0.vehicleID = vehicles.first?.id }
-                $0.failure = nil
             }
         }
     }
@@ -215,6 +267,7 @@ final class GuinchoMapViewModel: ObservableObject {
         let revision = addressRevision
         update {
             $0.destination = nil
+            $0.restoredDestinationAddress = nil
             $0.destinationAddress = ""
             $0.searchingAddress = true
             $0.addressSuggestions = []
@@ -244,6 +297,7 @@ final class GuinchoMapViewModel: ObservableObject {
         let revision = addressRevision
         let willSearch = query.trimmingCharacters(in: .whitespaces).count >= 3
         update {
+            $0.restoredDestinationAddress = nil
             $0.destinationAddress = query
             $0.destination = nil
             $0.addressSuggestions = []
@@ -281,6 +335,7 @@ final class GuinchoMapViewModel: ObservableObject {
         selectedDestinationSuggestion = suggestion
         update {
             $0.destination = suggestion.coordinate
+            $0.restoredDestinationAddress = nil
             $0.destinationAddress = suggestion.label
             $0.addressSuggestions = []
             $0.searchingAddress = false
@@ -293,9 +348,12 @@ final class GuinchoMapViewModel: ObservableObject {
 
     func updateDestinationNumber(_ value: String) {
         guard state.stage == .destination else { return }
+        let number = String(value.filter { !$0.isNewline }.prefix(20))
+        guard number != state.destinationNumber else { return }
         if state.operation == .resolvingAddress { cancelAddressSearch() }
         update {
-            $0.destinationNumber = String(value.filter { !$0.isNewline }.prefix(20))
+            $0.restoredDestinationAddress = nil
+            $0.destinationNumber = number
             $0.destinationNumberNotFound = false
             $0.addressSearchFailure = false
             $0.failure = nil
@@ -396,6 +454,10 @@ final class GuinchoMapViewModel: ObservableObject {
               !state.destinationNumber.trimmingCharacters(in: .whitespaces).isEmpty,
               let vehicleID = state.vehicleID else {
             update { $0.failure = .invalidInput }
+            return
+        }
+        if let vehicle = state.vehicles.first(where: { $0.id == vehicleID }), vehicle.transportCategoryID == nil {
+            update { $0.failure = .vehicleCategoryRequired }
             return
         }
         let input = GuinchoTripInput(
@@ -519,7 +581,7 @@ final class GuinchoMapViewModel: ObservableObject {
         update {
             $0.failure = reason
             $0.operation = .idle
-            if [.quoteExpired, .quoteConflict, .providerUnavailable].contains(reason) { $0.quote = nil }
+            if [.quoteExpired, .quoteConflict, .providerUnavailable, .incompatibleVehicle, .providerExcluded, .catalogConflict].contains(reason) { $0.quote = nil }
         }
     }
 

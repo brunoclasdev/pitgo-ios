@@ -39,12 +39,16 @@ struct GuinchoProvider: Identifiable, Equatable {
     let coordinate: CLLocationCoordinate2D
     let distanceMeters: Double
     let ratingSummary: ProviderRatingSummary?
+    var dispatchVehicleID: UUID? = nil
+    var sizeID: UUID? = nil
+    var sizeName: String? = nil
 
     static func == (lhs: GuinchoProvider, rhs: GuinchoProvider) -> Bool {
         lhs.id == rhs.id && lhs.offerID == rhs.offerID && lhs.name == rhs.name
             && lhs.coordinate.latitude == rhs.coordinate.latitude && lhs.coordinate.longitude == rhs.coordinate.longitude
             && lhs.distanceMeters == rhs.distanceMeters
             && lhs.ratingSummary == rhs.ratingSummary
+            && lhs.dispatchVehicleID == rhs.dispatchVehicleID && lhs.sizeID == rhs.sizeID && lhs.sizeName == rhs.sizeName
     }
 }
 
@@ -58,6 +62,10 @@ struct GuinchoQuote: Equatable {
     let total: Decimal
     let expiresAt: Date
     let durationMinutes: Int?
+    var dispatchVehicleID: UUID? = nil
+    var sizeID: UUID? = nil
+    var sizeName: String? = nil
+    var sizePriceVersion: Int64? = nil
 
     var isExpired: Bool { expiresAt <= Date() }
 }
@@ -74,6 +82,7 @@ struct GuinchoAddressSuggestion: Identifiable, Equatable {
 }
 
 enum GuinchoFailureReason {
+    case vehicleCategoryRequired, guinchoSizeRequired, incompatibleVehicle, providerExcluded, catalogConflict
     case invalidInput
     case sessionExpired
     case offline

@@ -245,6 +245,13 @@ struct MobileDispatchSnapshot: Decodable, Equatable {
     /// `034`: estado privado do cliente para oferecer avaliação sem publicar o comentário.
     let ratingState: ServiceRatingState?
 
+    /// Same gate as Android: arrival + approved (or waived) inspection + server START action.
+    var canStartGuinchoTransport: Bool {
+        guard dispatchKind == .guinchoDirect, appointment?.status == .accepted,
+              appointment?.arrivedAt != nil, allowedActions.contains(.start), let inspection else { return false }
+        return !inspection.required || inspection.state == .approved
+    }
+
     enum CodingKeys: String, CodingKey {
         case searchID = "search_id"
         case serviceID = "service_id"

@@ -21,7 +21,9 @@ struct ProviderDashboardView: View {
     @State private var path: [PitGoRoute] = []
     @State private var followsHomeLocation = true
     @State private var homeMapCenterTrigger = 0
+    @State private var selectedHomeTab: GuinchoHomeTab = .map
 
+    private let hasHomeMap: Bool
     let accountID: UUID
     /// `providers.id` — identidade estável usada pelo tópico privado `provider-dispatch:<providerID>`
     /// (nunca `account_id`, que é o owner Auth substituível).
@@ -58,6 +60,7 @@ struct ProviderDashboardView: View {
             pitTecRepository: pitTecRepository,
             locationRepository: locationRepository
         ))
+        hasHomeMap = snapshot.provider.providerKind == .guincho || snapshot.provider.locationMode == .mobile
         accountID = snapshot.accountID
         providerID = snapshot.provider.id
         dashboardRepository = repository
@@ -75,7 +78,8 @@ struct ProviderDashboardView: View {
     var body: some View {
         NavigationStack(path: $path) {
             content
-                .navigationTitle("Área da empresa")
+                .navigationTitle(Text(homeNavigationTitle))
+                .navigationBarTitleDisplayMode(.inline)
                 .navigationDestination(for: PitGoRoute.self) { route in
                     switch route {
                     case let .providerAppointmentTracking(appointmentID):
@@ -114,7 +118,7 @@ struct ProviderDashboardView: View {
                                            onBack: { path.removeLast() })
                     case .serviceMap, .requestService, .appointmentTracking, .guinchoInspectionReview, .providerMigrationStart,
                          .mobileDispatchNewSearch, .mobileDispatchSearch, .pitTec, .clientAddress,
-                         .paymentMethods, .guincho, .storeCatalog:
+                         .paymentMethods, .guincho, .guinchoSearchResume, .storeCatalog:
                         EmptyView()
                     }
                 }
@@ -180,71 +184,81 @@ struct ProviderDashboardView: View {
 
     @ViewBuilder
     private var content: some View {
+        if hasHomeMap {
+            PitGoBottomTabs(selection: $selectedHomeTab) { tab in
+                switch tab {
+                case .map:
+                    ZStack {
+                        guinchoHomeMap.ignoresSafeArea(edges: .bottom)
+                        ServiceMapCard(placement: .top) { dashboardInformation }
+                    }
+                    .overlay(alignment: .bottomLeading) { MapAttributionView().padding(12) }
+                    .background(tokens.background)
+                case .history:
+                    GuinchoHistoryView(repository: guinchoHistoryRepository,
+                        inspectionRepository: guinchoInspectionRepository,
+                        ratingRepository: serviceRatingRepository, showsBackButton: false)
+                case .profile:
+                    providerProfile
+                }
+            }
+            .tint(tokens.accent)
+            .toolbarBackground(tokens.surface, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
+        } else {
+            ScrollView { dashboardInformation }
+                .background(tokens.background)
+        }
+    }
+
+    private var homeNavigationTitle: LocalizedStringResource {
+        guard hasHomeMap else { return "Área da empresa" }
+        switch selectedHomeTab {
+        case .map: return "Guincho"
+        case .history: return "Histórico"
+        case .profile: return "Perfil"
+        }
+    }
+
+    @ViewBuilder
+    private var providerProfile: some View {
         switch viewModel.state {
         case let .content(snapshot), let .refreshing(snapshot):
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     header(snapshot)
-                    if snapshot.provider.locationMode == .mobile {
-                        guinchoHomeMap
-                    }
-                    modeSection(snapshot)
-                    availabilitySection(snapshot)
-                    if snapshot.provider.providerKind == .store {
-                        Button { showStoreCatalog = true } label: {
-                            Label("Gerenciar produtos da loja", systemImage: "shippingbox")
-                                .font(PitGoTypography.categoryTitle)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(14)
-                                .background(tokens.surface)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        }
-                    }
-                    NavigationLink(value: PitGoRoute.providerGuinchoHistory) {
-                        Label("Histórico de atendimentos", systemImage: "clock.arrow.circlepath")
-                            .font(PitGoTypography.categoryTitle)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(14)
-                            .background(tokens.surface)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    if snapshot.provider.locationMode == .mobile {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let providerRatingSummary {
-                                ProviderRatingSummaryLabel(summary: providerRatingSummary)
-                            } else if isLoadingProviderRating {
-                                ProgressView("Carregando avaliações…").font(PitGoTypography.caption)
-                            } else if providerRatingSummaryFailed {
-                                Button("Não foi possível carregar a média. Tentar novamente") {
-                                    Task { await loadProviderRatingSummary() }
-                                }
-                                .font(PitGoTypography.caption)
-                            }
-                            Button { showProviderRatings = true } label: {
-                                Label("Avaliações e comentários", systemImage: "star.bubble")
-                                    .font(PitGoTypography.categoryTitle)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(14)
-                                    .background(tokens.surface)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            }
-                        }
-                    }
-                    if snapshot.provider.locationMode == .mobile || snapshot.provider.locationMode == .pittec {
-                        discoveryStatusSection
-                    }
-                    if let failure = viewModel.settingsFailure {
-                        Text(message(for: failure))
-                            .font(PitGoTypography.caption)
-                            .foregroundStyle(.red)
-                            .accessibilityAddTraits(.updatesFrequently)
-                    }
-                    Spacer(minLength: 24)
-                    signOutButton
+                    providerOptions(snapshot)
                 }
                 .padding(20)
             }
             .background(tokens.background)
+        case .failure:
+            dashboardInformation
+        }
+    }
+
+    @ViewBuilder
+    private var dashboardInformation: some View {
+        switch viewModel.state {
+        case let .content(snapshot), let .refreshing(snapshot):
+            VStack(alignment: .leading, spacing: 16) {
+                header(snapshot)
+                availabilitySection(snapshot)
+                if hasHomeMap {
+                    homeLocationStatus
+                    discoveryStatusSection
+                } else {
+                    providerOptions(snapshot)
+                    if snapshot.provider.locationMode == .pittec { discoveryStatusSection }
+                }
+                if let failure = viewModel.settingsFailure {
+                    Text(message(for: failure))
+                        .font(PitGoTypography.caption)
+                        .foregroundStyle(.red)
+                        .accessibilityAddTraits(.updatesFrequently)
+                }
+            }
+            .padding(20)
         case .failure:
             VStack(spacing: 16) {
                 Text("Não foi possível carregar os dados da empresa.")
@@ -254,78 +268,121 @@ struct ProviderDashboardView: View {
                     .frame(minHeight: 44)
             }
             .padding(24)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(tokens.background)
+            .frame(maxWidth: .infinity)
         }
     }
 
-    private var guinchoHomeMap: some View {
-        TimelineView(.periodic(from: .now, by: 5)) { timeline in
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Sua localização")
-                    .font(PitGoTypography.categoryTitle)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                Button(action: { viewModel.locateHome() }) {
-                    Label("Recentralizar", systemImage: "location.fill")
-                        .font(PitGoTypography.caption)
+    private func providerOptions(_ snapshot: ProviderSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            NavigationLink("Editar cadastro") { RegistrationEditView(client: dashboardRepository.client) }
+            if snapshot.provider.providerKind == .guincho {
+                NavigationLink("Meus guinchos · cadastrar e editar porte") {
+                    GuinchoFleetView(client: dashboardRepository.client)
                 }
-                .frame(minHeight: 44)
-                .disabled(viewModel.isLocatingHome)
-                .simultaneousGesture(TapGesture().onEnded {
-                    followsHomeLocation = true
-                    homeMapCenterTrigger += 1
-                })
             }
-            if let fix = viewModel.currentHomeFix, timeline.date.timeIntervalSince(fix.timestamp) < 35 {
-                let coordinate = CLLocationCoordinate2D(latitude: fix.latitude, longitude: fix.longitude)
-                PitGoMapView(
-                    annotations: [PitGoMapAnnotationItem(
-                        id: "provider-home-location",
-                        coordinate: coordinate,
-                        title: "Sua localização",
-                        symbolName: "car.fill"
-                    )],
-                    centerCoordinate: coordinate,
-                    zoomLevel: 15,
-                    centerTrigger: homeMapCenterTrigger,
-                    onUserGesture: { followsHomeLocation = false }
-                )
-                .frame(height: 300)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                Text("Posição atualizada às \(fix.timestamp.formatted(date: .omitted, time: .shortened))")
-                    .font(PitGoTypography.caption)
-                    .foregroundStyle(tokens.textSecondary)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous).fill(tokens.surface)
-                    VStack(spacing: 10) {
-                        if viewModel.isLocatingHome { ProgressView("Obtendo localização…") }
-                        else if viewModel.currentHomeFix != nil {
-                            Text("Sua posição está desatualizada.")
-                                .font(PitGoTypography.body)
-                                .multilineTextAlignment(.center)
-                            Button("Atualizar posição") { viewModel.locateHome() }
-                                .frame(minHeight: 44)
-                        } else if viewModel.homeLocationUnavailable {
-                            Label(homeLocationUnavailableMessage, systemImage: "location.slash")
-                                .font(PitGoTypography.body)
-                                .multilineTextAlignment(.center)
-                            Button("Tentar novamente") { viewModel.locateHome() }
-                                .frame(minHeight: 44)
-                        } else {
-                            ProgressView("Obtendo localização…")
+            modeSection(snapshot)
+            if snapshot.provider.providerKind == .store {
+                Button { showStoreCatalog = true } label: {
+                    Label("Gerenciar produtos da loja", systemImage: "shippingbox")
+                        .font(PitGoTypography.categoryTitle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(tokens.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(tokens.accent, lineWidth: 1.5))
+                }
+            }
+            if !hasHomeMap {
+                NavigationLink(value: PitGoRoute.providerGuinchoHistory) {
+                    Label("Histórico de atendimentos", systemImage: "clock.arrow.circlepath")
+                        .font(PitGoTypography.categoryTitle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(tokens.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(tokens.accent, lineWidth: 1.5))
+                }
+            }
+            if snapshot.provider.locationMode == .mobile {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let providerRatingSummary {
+                        ProviderRatingSummaryLabel(summary: providerRatingSummary)
+                    } else if isLoadingProviderRating {
+                        ProgressView("Carregando avaliações…").font(PitGoTypography.caption)
+                    } else if providerRatingSummaryFailed {
+                        Button("Não foi possível carregar a média. Tentar novamente") {
+                            Task { await loadProviderRatingSummary() }
                         }
+                        .font(PitGoTypography.caption)
                     }
-                    .padding(20)
+                    Button { showProviderRatings = true } label: {
+                        Label("Avaliações e comentários", systemImage: "star.bubble")
+                            .font(PitGoTypography.categoryTitle)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                            .background(tokens.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(tokens.accent, lineWidth: 1.5))
+                    }
                 }
-                .frame(height: 180)
             }
+            signOutButton
         }
+        .padding(.top, 8)
+    }
+
+
+    /// The map is never replaced by location messages or placed inside a scrolling card.
+    private var guinchoHomeMap: some View {
+        let fix = viewModel.currentHomeFix
+        let coordinate = fix.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        return PitGoMapView(
+            annotations: coordinate.map { [PitGoMapAnnotationItem(id: "provider-home-location", coordinate: $0,
+                title: "Sua localização", symbolName: "truck.box.fill")] } ?? [],
+            centerCoordinate: coordinate,
+            zoomLevel: 15,
+            centerTrigger: homeMapCenterTrigger,
+            showsUserLocation: true,
+            onUserGesture: { followsHomeLocation = false }
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: viewModel.currentHomeFix?.timestamp) { _ in
             if followsHomeLocation { homeMapCenterTrigger += 1 }
         }
+    }
+
+    private var homeLocationStatus: some View {
+        TimelineView(.periodic(from: .now, by: 5)) { timeline in
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Sua localização", systemImage: "location.fill")
+                        .font(PitGoTypography.categoryTitle)
+                    Spacer()
+                    Button("Recentralizar") {
+                        followsHomeLocation = true
+                        homeMapCenterTrigger += 1
+                        viewModel.locateHome()
+                    }
+                    .font(PitGoTypography.caption)
+                    .frame(minHeight: 44)
+                    .disabled(viewModel.isLocatingHome)
+                }
+                if viewModel.isLocatingHome {
+                    ProgressView("Obtendo localização…")
+                } else if let fix = viewModel.currentHomeFix {
+                    Text(timeline.date.timeIntervalSince(fix.timestamp) < 35
+                         ? "Posição atualizada às \(fix.timestamp.formatted(date: .omitted, time: .shortened))"
+                         : "Exibindo sua última posição. Toque em Recentralizar para atualizar.")
+                        .font(PitGoTypography.caption)
+                        .foregroundStyle(tokens.textSecondary)
+                } else if viewModel.homeLocationUnavailable {
+                    Label(homeLocationUnavailableMessage, systemImage: "location.slash")
+                        .font(PitGoTypography.caption)
+                        .foregroundStyle(tokens.textSecondary)
+                } else {
+                    ProgressView("Obtendo localização…")
+                }
+            }
         }
     }
 
@@ -376,6 +433,11 @@ struct ProviderDashboardView: View {
                 .font(PitGoTypography.body)
                 .foregroundStyle(discoveryStatusColor)
                 .accessibilityAddTraits(.updatesFrequently)
+            if viewModel.discoveryTracker.state == .degraded(reason: .publisherConflict),
+               !viewModel.discoveryTracker.isWaitingForPublisherRecovery {
+                Button("Reconectar localização") { viewModel.discoveryTracker.restart() }
+                    .frame(minHeight: 44)
+            }
         }
     }
 
@@ -394,7 +456,9 @@ struct ProviderDashboardView: View {
         switch reason {
         case .permissionDenied: "Permita o acesso à localização nas Configurações para ficar visível."
         case .locationServicesDisabled: "Ative os Serviços de Localização para ficar visível."
-        case .publisherConflict: "Localização sendo publicada por outro dispositivo/sessão."
+        case .publisherConflict: viewModel.discoveryTracker.isWaitingForPublisherRecovery
+            ? "Aguardando a liberação de uma publicação anterior…"
+            : "Conflito ao publicar a localização. Toque em Reconectar localização."
         case .offline: "Sem conexão — sua posição pode ficar desatualizada."
         case .service, .sessionExpired, .notEligible, .appointmentTerminal: "Não foi possível publicar sua localização agora."
         }
@@ -443,6 +507,26 @@ struct ProviderDashboardView: View {
         case .service: "Não foi possível concluir agora. Tente novamente em instantes."
         case .sessionExpired: "Sua sessão expirou. Entre novamente."
         case .unknown: "Não foi possível concluir a ação. Tente novamente."
+        }
+    }
+}
+
+private enum GuinchoHomeTab: CaseIterable, PitGoBottomTabItem {
+    case map, history, profile
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .map: "Mapa"
+        case .history: "Histórico"
+        case .profile: "Perfil"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .map: "map.fill"
+        case .history: "clock.arrow.circlepath"
+        case .profile: "person.crop.circle.fill"
         }
     }
 }

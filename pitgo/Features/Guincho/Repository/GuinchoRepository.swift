@@ -112,6 +112,17 @@ final class GuinchoRepository {
         }
     }
 
+    func cancelSearch() async -> GuinchoOutcome<Bool> {
+        await call {
+            try await self.client.rpc("cancel_my_guincho_search").execute()
+            return true
+        }
+    }
+
+    func searchResume() async -> GuinchoOutcome<GuinchoSearchResume> {
+        await call { try await self.client.rpc("get_my_guincho_search_resume").execute().value }
+    }
+
     // MARK: - Helpers
 
     /// Mesmo padrão de `MobileDispatchRepository`/`PaymentRepository` — sem timeout próprio; confia
@@ -130,6 +141,11 @@ final class GuinchoRepository {
         if let functionsError = error as? FunctionsError, case let .httpError(statusCode, data) = functionsError {
             let code = try? JSONDecoder().decode(GuinchoEdgeFunctionErrorBody.self, from: data).code
             switch code {
+            case "VEHICLE_CATEGORY_REQUIRED": return .vehicleCategoryRequired
+            case "GUINCHO_SIZE_REQUIRED": return .guinchoSizeRequired
+            case "INCOMPATIBLE_VEHICLE": return .incompatibleVehicle
+            case "PROVIDER_EXCLUDED": return .providerExcluded
+            case "CATALOG_CONFLICT": return .catalogConflict
             case "ROUTE_UNAVAILABLE": return .routeUnavailable
             case "PROVIDER_UNAVAILABLE": return .providerUnavailable
             case "QUOTE_EXPIRED": return .quoteExpired
@@ -140,6 +156,15 @@ final class GuinchoRepository {
             }
         }
         if let postgrestError = error as? PostgrestError {
+            switch postgrestError.message {
+            case "VEHICLE_CATEGORY_REQUIRED": return .vehicleCategoryRequired
+            case "GUINCHO_SIZE_REQUIRED": return .guinchoSizeRequired
+            case "INCOMPATIBLE_VEHICLE": return .incompatibleVehicle
+            case "PROVIDER_EXCLUDED": return .providerExcluded
+            case "CATALOG_CONFLICT": return .catalogConflict
+            case "PRICING_UNAVAILABLE": return .pricingUnavailable
+            default: break
+            }
             switch postgrestError.code {
             case "42501": return .sessionExpired
             default: return .contract

@@ -31,10 +31,13 @@ struct PendingGuinchoInspectionCapture: Codable {
 final class GuinchoInspectionCaptureStore {
     static let shared = GuinchoInspectionCaptureStore()
     private let fileManager = FileManager.default
+    private let rootDirectory: URL?
+
+    init(rootDirectory: URL? = nil) { self.rootDirectory = rootDirectory }
 
     private func directory(accountID: UUID, appointmentID: UUID) throws -> URL {
-        let base = try fileManager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("GuinchoInspectionPending", isDirectory: true)
+        let root = try rootDirectory ?? fileManager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let base = root.appendingPathComponent("GuinchoInspectionPending", isDirectory: true)
             .appendingPathComponent(accountID.uuidString, isDirectory: true)
             .appendingPathComponent(appointmentID.uuidString, isDirectory: true)
         try fileManager.createDirectory(at: base, withIntermediateDirectories: true)
@@ -48,7 +51,7 @@ final class GuinchoInspectionCaptureStore {
     func save(_ item: PendingGuinchoInspectionCapture, original: Data, thumbnail: Data) throws {
         let folder = try directory(accountID: item.accountID, appointmentID: item.appointmentID)
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .millisecondsSince1970
         // Write the manifest first so a process interruption during either asset write leaves
         // enough metadata to reconcile or discard the capture on the next launch.
         try updateManifest(item, in: folder, encoder: encoder)
@@ -59,7 +62,7 @@ final class GuinchoInspectionCaptureStore {
     func updateManifest(_ item: PendingGuinchoInspectionCapture) throws {
         let folder = try directory(accountID: item.accountID, appointmentID: item.appointmentID)
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .millisecondsSince1970
         try updateManifest(item, in: folder, encoder: encoder)
     }
 
@@ -75,8 +78,18 @@ final class GuinchoInspectionCaptureStore {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
         guard let manifestURL = files.first else { return nil }
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let item = try decoder.decode(PendingGuinchoInspectionCapture.self, from: Data(contentsOf: manifestURL))
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            if let milliseconds = try? container.decode(Double.self) { return Date(timeIntervalSince1970: milliseconds / 1000) }
+            let text = try container.decode(String.self)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: text) { return date }
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: text) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid capture date")
+        }
+        var item = try decoder.decode(PendingGuinchoInspectionCapture.self, from: Data(contentsOf: manifestURL))
         let originalURL = folder.appendingPathComponent(item.originalFilename)
         guard let original = try? Data(contentsOf: originalURL), UIImage(data: original) != nil else {
             throw GuinchoInspectionCaptureRecoveryError.originalUnavailable(item)
@@ -87,12 +100,27 @@ final class GuinchoInspectionCaptureStore {
         guard Int64(original.count) == expectedOriginalSize, Self.sha256(original) == expectedOriginalHash else {
             throw GuinchoInspectionCaptureRecoveryError.integrityMismatch(item)
         }
+        // The previous iOS encoder could persist oversized assets, but capture() rejected
+        // them before reserving anything remotely. Repair only those never-uploadable bytes.
+        if original.count > GuinchoInspectionImageEncoder.originalByteLimit || (item.thumbnailByteSize ?? 0) > GuinchoInspectionImageEncoder.thumbnailByteLimit {
+            guard let image = UIImage(data: original), let repaired = GuinchoInspectionImageEncoder.prepare(image) else {
+                throw GuinchoInspectionCaptureRecoveryError.originalUnavailable(item)
+            }
+            item.originalSHA256 = Self.sha256(repaired.original)
+            item.originalByteSize = Int64(repaired.original.count)
+            item.thumbnailSHA256 = Self.sha256(repaired.thumbnail)
+            item.thumbnailByteSize = Int64(repaired.thumbnail.count)
+            try save(item, original: repaired.original, thumbnail: repaired.thumbnail)
+            return (item, repaired.original, repaired.thumbnail)
+        }
         let thumbnailURL = folder.appendingPathComponent(item.thumbnailFilename)
         var thumbnail = try? Data(contentsOf: thumbnailURL)
         if thumbnail.flatMap({ UIImage(data: $0) }) == nil
             || thumbnail.map({ Self.sha256($0) }) != item.thumbnailSHA256
             || thumbnail.map({ Int64($0.count) }) != item.thumbnailByteSize {
-            guard let image = UIImage(data: original), let regenerated = Self.thumbnailJPEG(image) else {
+            guard let image = UIImage(data: original),
+                  let regenerated = [GuinchoInspectionImageEncoder.thumbnail(from: image), Self.thumbnailJPEG(image)]
+                    .compactMap({ $0 }).first(where: { Self.sha256($0) == item.thumbnailSHA256 && Int64($0.count) == item.thumbnailByteSize }) else {
                 throw GuinchoInspectionCaptureRecoveryError.originalUnavailable(item)
             }
             guard let expectedThumbnailHash = item.thumbnailSHA256,

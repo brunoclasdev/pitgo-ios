@@ -32,6 +32,8 @@ actor SimulatedPaymentGateway: SimulatablePaymentGateway {
     private struct SimulatedPayment {
         let id: UUID
         let requestID: UUID
+        let serviceID: UUID
+        let dispatchKind: PaymentDispatchKind
         var status: PaymentStatus
         let method: PaymentMethodKind
         let pix: PaymentPixDetails?
@@ -69,7 +71,7 @@ actor SimulatedPaymentGateway: SimulatablePaymentGateway {
             return await createGuinchoPayment(requestID: requestID, method: method)
         }
 
-        if let existing = payments[requestID] {
+        if let existing = payments[requestID], [.pending, .approved].contains(existing.status) {
             return .created(PaymentCreationResult(paymentID: existing.id, status: existing.status, pix: existing.pix))
         }
         guard amount > 0 else { return .failure(.unknown) }
@@ -77,14 +79,24 @@ actor SimulatedPaymentGateway: SimulatablePaymentGateway {
         let pix: PaymentPixDetails? = method == .pix
             ? PaymentPixDetails(qrCode: "SIMULACAO-SEM-VALOR", qrCodeBase64: Self.simulatedPixBase64, expiresAt: Date().addingTimeInterval(300))
             : nil
-        let payment = SimulatedPayment(id: UUID(), requestID: requestID, status: .pending, method: method, pix: pix)
+        let payment = SimulatedPayment(id: UUID(), requestID: requestID, serviceID: serviceID, dispatchKind: dispatchKind, status: .pending, method: method, pix: pix)
         payments[requestID] = payment
         return .created(PaymentCreationResult(paymentID: payment.id, status: .pending, pix: pix))
     }
 
+    func recoverable() async -> PaymentStatusResult {
+        if let payment = payments.values.first(where: { [.pending, .approved].contains($0.status) }) {
+            return .found(paymentID: payment.id, status: payment.status, method: payment.method,
+                details: PaymentStatusDetails(pix: payment.pix, requestID: payment.requestID,
+                    serviceID: payment.serviceID, dispatchKind: payment.dispatchKind))
+        }
+        guard let persisted else { return .notFound }
+        return await persisted.recoverable()
+    }
+
     func status(requestID: UUID) async -> PaymentStatusResult {
         if let payment = payments[requestID] {
-            return .found(paymentID: payment.id, status: payment.status, method: payment.method)
+            return .found(paymentID: payment.id, status: payment.status, method: payment.method, details: PaymentStatusDetails(pix: payment.pix))
         }
         // `028`: pode ser um pagamento Guincho real criado por `createGuinchoPayment` — consulta o
         // backend de verdade em vez de reportar `.notFound` por engano.
@@ -105,6 +117,19 @@ actor SimulatedPaymentGateway: SimulatablePaymentGateway {
         payments[requestID] = payment
         notify(requestID)
         return .resolved(payment.status)
+    }
+
+    func cancel(paymentID: UUID) async -> PaymentRefundOutcome {
+        if payments.values.contains(where: { $0.id == paymentID }) {
+            return await refund(paymentID: paymentID)
+        }
+        guard let persisted else { return .failure(.notFound) }
+        return await persisted.cancel(paymentID: paymentID)
+    }
+
+    func cancelUnpaidGuincho(requestID: UUID) async -> Bool {
+        guard let persisted else { return false }
+        return await persisted.cancelUnpaidGuincho(requestID: requestID)
     }
 
     func subscribe(requestID: UUID, onChanged: @escaping @Sendable () -> Void) async {
@@ -152,7 +177,7 @@ actor SimulatedPaymentGateway: SimulatablePaymentGateway {
     private func createGuinchoPayment(requestID: UUID, method: PaymentMethodKind) async -> PaymentCreationOutcome {
         let result = await simulateGuinchoPayment(requestID: requestID, status: .pending, method: method)
         switch result {
-        case let .found(paymentID, status, _):
+        case let .found(paymentID, status, _, _):
             return .created(PaymentCreationResult(paymentID: paymentID, status: status, pix: lastGuinchoPix))
         case .notFound:
             return .failure(.unknown)

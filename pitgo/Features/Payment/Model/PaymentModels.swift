@@ -90,7 +90,7 @@ struct PitTecPaymentContext: Equatable, Identifiable {
     var id: UUID { appointmentID }
 }
 
-struct PaymentPixDetails: Decodable, Equatable {
+nonisolated struct PaymentPixDetails: Decodable, Equatable {
     let qrCode: String
     let qrCodeBase64: String
     let expiresAt: Date?
@@ -103,13 +103,30 @@ struct PaymentPixDetails: Decodable, Equatable {
 }
 
 /// Resposta de `mp-create-payment` (`contracts/mercadopago-edge-functions.md`).
-struct PaymentCreationResult: Decodable, Equatable {
+nonisolated struct PaymentCreationResult: Decodable, Equatable {
     let paymentID: UUID
     let status: PaymentStatus
     let pix: PaymentPixDetails?
+    let cancelRequested: Bool
+    let syncState: String
+
+    init(paymentID: UUID, status: PaymentStatus, pix: PaymentPixDetails?, cancelRequested: Bool = false, syncState: String = "CURRENT") {
+        self.paymentID = paymentID; self.status = status; self.pix = pix; self.cancelRequested = cancelRequested; self.syncState = syncState
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        paymentID = try values.decode(UUID.self, forKey: .paymentID)
+        status = try values.decode(PaymentStatus.self, forKey: .status)
+        pix = try values.decodeIfPresent(PaymentPixDetails.self, forKey: .pix)
+        cancelRequested = try values.decodeIfPresent(Bool.self, forKey: .cancelRequested) ?? false
+        syncState = try values.decodeIfPresent(String.self, forKey: .syncState) ?? "CURRENT"
+    }
 
     enum CodingKeys: String, CodingKey {
         case paymentID = "payment_id"
+        case cancelRequested = "cancel_requested"
+        case syncState = "sync_state"
         case status
         case pix
     }

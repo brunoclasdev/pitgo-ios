@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import UIKit
+import Supabase
 
 @MainActor
 final class GuinchoInspectionViewModel: ObservableObject {
@@ -196,11 +197,12 @@ final class GuinchoInspectionViewModel: ObservableObject {
                  caption: String? = nil, replacing: UUID? = nil) {
         guard let document, !isSaving, pendingCapture == nil,
               let versionID = document.summary.currentVersionID else { return }
-        guard let original = Self.jpeg(image, maxDimension: 2200, quality: 0.82),
-              let thumbnail = Self.jpeg(image, maxDimension: 900, quality: 0.58) else {
+        guard let prepared = GuinchoInspectionImageEncoder.prepare(image) else {
             failure = "Não foi possível preparar a foto. Tire outra imagem."
             return
         }
+        let original = prepared.original
+        let thumbnail = prepared.thumbnail
         isSaving = true
         Task {
             var unsavedMetadata: PendingGuinchoInspectionCapture?
@@ -240,6 +242,9 @@ final class GuinchoInspectionViewModel: ObservableObject {
         failure = nil
         Task {
             do {
+                guard try await repository.currentAccountID() == pendingCapture.metadata.accountID else {
+                    throw GuinchoInspectionError.sessionExpired
+                }
                 if !isCapturePersisted {
                     try captureStore.save(pendingCapture.metadata, original: pendingCapture.original, thumbnail: pendingCapture.thumbnail)
                     isCapturePersisted = true
@@ -259,6 +264,7 @@ final class GuinchoInspectionViewModel: ObservableObject {
                 isCapturePersisted = false
                 load()
             } catch {
+                if let latest = try? await repository.document(appointmentID: appointmentID) { self.document = latest }
                 failure = message(for: error)
             }
             isSaving = false
@@ -305,7 +311,7 @@ final class GuinchoInspectionViewModel: ObservableObject {
     }
 
     func submit() {
-        guard !isSubmittingIntent, let document, !isSaving,
+        guard !isSubmittingIntent, let document, !isSaving, !hasPendingCapture, !hasUnrecoverableCapture,
               document.summary.requiredPointsReady == 4, document.pendingPhotos.isEmpty,
               let versionID = document.summary.currentVersionID else { return }
         isSaving = true
@@ -382,23 +388,31 @@ final class GuinchoInspectionViewModel: ObservableObject {
     func consumeSubmissionConfirmation() { submissionConfirmedID = nil }
 
     private func message(for error: Error) -> String {
-        switch error as? GuinchoInspectionError {
+        if let error = error as? PostgrestError {
+            let code = error.message.uppercased()
+            if code.contains("OPERATION_CONFLICT") || code.contains("VERSION_CONFLICT") { return "A captura pertence a outra versão da vistoria. Atualize a situação antes de continuar." }
+            if code.contains("CLOSED") || code.contains("INVALID_TRANSITION") { return "Este atendimento não permite novas alterações na vistoria." }
+            if code.contains("PHOTO_NOT_SAVED") || code.contains("UPLOAD_PENDING") { return "O envio da foto ainda não foi concluído. Toque em Tentar salvar novamente." }
+            if code.contains("IMAGE") || code.contains("FILE_TOO_LARGE") { return "A foto não está válida. Tire outra imagem." }
+            if error.code == "42501" { return "Sua sessão não tem acesso a esta vistoria. Entre novamente com a conta do atendimento." }
+        }
+        if let error = error as? StorageError {
+            if error.statusCode == "401" || error.statusCode == "403" { return "Sua sessão não permite salvar a foto. Entre novamente com a conta do atendimento." }
+            if error.statusCode == "413" { return "A foto excedeu o limite permitido. Tire outra imagem." }
+        }
+        return switch error as? GuinchoInspectionError {
         case .closed: "Este atendimento não permite novas alterações na vistoria."
         case .invalidImage: "A foto não está válida. Tire outra imagem."
         case .reasonRequired: "Informe o motivo da correção."
         case .revisionConflict: "O atendimento mudou. Atualize a vistoria antes de continuar."
         case .contract: "Não foi possível confirmar a vistoria. Tente novamente."
+        case .context: "A captura pertence a outra versão ou foi descartada. Atualize a vistoria antes de continuar."
+        case .sessionExpired: "Sua sessão mudou. Entre novamente com a conta do atendimento."
+        case .forbidden: "Sua conta não tem acesso a esta vistoria."
+        case .incomplete: "O envio da foto ainda não foi concluído. Tente salvar novamente."
+        case .serviceUnavailable: "O serviço de fotos está indisponível. Tente novamente."
         case nil: "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
         }
     }
 
-    private static func jpeg(_ image: UIImage, maxDimension: CGFloat, quality: CGFloat) -> Data? {
-        let longest = max(image.size.width, image.size.height)
-        let scale = min(1, maxDimension / longest)
-        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.jpegData(withCompressionQuality: quality) { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }
-    }
 }

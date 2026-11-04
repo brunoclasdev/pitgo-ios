@@ -29,6 +29,10 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
     private var lastConfirmedSnapshot: MobileDispatchSnapshot?
     private var countdownTask: Task<Void, Never>?
     private var isStarted = false
+    private var pollTask: Task<Void, Never>?
+    private var subscriptionTask: Task<Void, Never>?
+    private var isRefreshing = false
+    private var generation = UUID()
 
     init(providerID: UUID, repository: MobileDispatchRepository) {
         self.providerID = providerID
@@ -38,31 +42,67 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
     func start() {
         guard !isStarted else { return }
         isStarted = true
-        Task { [weak self] in
+        let generation = UUID()
+        self.generation = generation
+        // Poll independently of Realtime. Inspection approval need not emit a provider event.
+        pollTask = Task { [weak self] in
             guard let self else { return }
-            apply(await repository.getActiveDispatch())
+            while !Task.isCancelled, self.generation == generation, isStarted {
+                await refreshSnapshot()
+                do { try await Task.sleep(nanoseconds: 3_000_000_000) }
+                catch { return }
+            }
+        }
+        subscriptionTask = Task { [weak self] in
+            guard let self, self.generation == generation, isStarted else { return }
             await repository.subscribeToProvider(providerID: providerID) { [weak self] in
-                Task { @MainActor in self?.refresh() }
+                Task { @MainActor in
+                    guard let self, self.generation == generation, self.isStarted else { return }
+                    await self.refreshSnapshot()
+                }
             }
         }
     }
 
     func stop() {
+        isStarted = false
+        generation = UUID()
+        pollTask?.cancel()
+        pollTask = nil
+        subscriptionTask?.cancel()
+        subscriptionTask = nil
         countdownTask?.cancel()
         countdownTask = nil
         repository.disconnectAll()
     }
 
     func retry() {
-        isStarted = false
+        stop()
         state = .noIncoming
         start()
     }
 
     private func refresh() {
-        Task { [weak self] in
-            guard let self else { return }
-            apply(await repository.getActiveDispatch())
+        Task { [weak self] in await self?.refreshSnapshot() }
+    }
+
+    private func refreshSnapshot() async {
+        guard isStarted, !isRefreshing, pendingAction == nil else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        let generation = generation
+        let result: MobileDispatchOperationResult
+        if let known = lastConfirmedSnapshot, known.dispatchKind == .guinchoDirect,
+           let appointmentID = known.appointment?.appointmentID {
+            result = await repository.getGuinchoSnapshot(appointmentID: appointmentID)
+        } else {
+            result = await repository.getActiveDispatch()
+        }
+        guard !Task.isCancelled, self.generation == generation, isStarted, pendingAction == nil else { return }
+        switch result {
+        case .failure(.sessionExpired): apply(result)
+        case .failure where lastConfirmedSnapshot != nil: break // Keep the last valid card during a network interruption.
+        default: apply(result)
         }
     }
 
@@ -133,7 +173,8 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
 
     /// `028` — guincheiro inicia o transporte após a chegada (`ACCEPTED`, `arrivedAt != nil`).
     func startTransport() {
-        guard let (_, appointment) = currentReserved, pendingAction == nil else { return }
+        guard let (snapshot, appointment) = currentReserved, pendingAction == nil else { return }
+        guard snapshot.canStartGuinchoTransport else { refresh(); return }
         run(.start, expectedRevision: appointment.revision) { [repository] in
             await repository.startGuinchoTransport(appointmentID: appointment.appointmentID, expectedRevision: appointment.revision)
         }
@@ -174,6 +215,7 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
         case .noActiveFlow:
             if lastConfirmedSnapshot?.dispatchKind == .guinchoDirect {
                 didFinishGuincho = true
+                stop()
             }
             state = .noIncoming
             countdownTask?.cancel()
@@ -181,7 +223,7 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
         case let .failure(reason):
             if reason == .sessionExpired {
                 state = .sessionExpired
-                repository.disconnectAll()
+                stop()
             } else {
                 state = .failure(lastConfirmed: lastConfirmedSnapshot)
             }
@@ -204,7 +246,7 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
         case .pending:
             state = .incoming(snapshot, pendingAction: pendingAction)
             startCountdownIfNeeded()
-        case .accepted, .inProgress, .awaitingClientCompletionConfirmation, .disputed:
+        case .awaitingPayment, .awaitingClientConfirmation, .accepted, .inProgress, .awaitingClientCompletionConfirmation, .disputed:
             // `028`: aguardando confirmação do cliente ou em contestação continuam "reservados" do
             // ponto de vista do prestador — cada estado decide suas próprias ações na View.
             state = .reserved(snapshot, pendingAction: pendingAction)
@@ -213,6 +255,7 @@ final class ProviderIncomingRequestViewModel: ObservableObject {
         default:
             if snapshot.dispatchKind == .guinchoDirect {
                 didFinishGuincho = true
+                stop()
             }
             state = .noIncoming
             countdownTask?.cancel()

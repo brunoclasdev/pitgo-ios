@@ -7,12 +7,14 @@ struct GuinchoHistoryView: View {
     let inspectionRepository: GuinchoInspectionRepository
     let ratingRepository: ServiceRatingRepository
     let onBack: () -> Void
+    let showsBackButton: Bool
 
-    init(repository: GuinchoHistoryRepository, inspectionRepository: GuinchoInspectionRepository, ratingRepository: ServiceRatingRepository, onBack: @escaping () -> Void = {}) {
+    init(repository: GuinchoHistoryRepository, inspectionRepository: GuinchoInspectionRepository, ratingRepository: ServiceRatingRepository, showsBackButton: Bool = true, onBack: @escaping () -> Void = {}) {
         _viewModel = StateObject(wrappedValue: GuinchoHistoryViewModel(repository: repository))
         self.inspectionRepository = inspectionRepository
         self.ratingRepository = ratingRepository
         self.onBack = onBack
+        self.showsBackButton = showsBackButton
     }
 
     var body: some View {
@@ -70,9 +72,11 @@ struct GuinchoHistoryView: View {
         .navigationTitle("Histórico de atendimentos")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: onBack) { Image(systemName: "chevron.left") }
-                    .accessibilityLabel("Voltar")
+            if showsBackButton {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: onBack) { Image(systemName: "chevron.left") }
+                        .accessibilityLabel("Voltar")
+                }
             }
         }
         .task { if viewModel.rows.isEmpty { viewModel.loadMore(reset: true) } }

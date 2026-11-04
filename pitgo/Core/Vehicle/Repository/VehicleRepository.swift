@@ -24,6 +24,7 @@ private struct CreateVehicleParams: Encodable {
     let p_transmission: String?
     let p_engine: String?
     let p_mileage: Int?
+    let p_transport_category_id: UUID?
     let p_make_primary: Bool
 }
 
@@ -51,6 +52,15 @@ final class VehicleRepository {
             .value
     }
 
+    func transportCatalog() async throws -> TransportCatalog {
+        try await client.rpc("get_guincho_transport_catalog").execute().value
+    }
+
+    func classifyVehicle(_ id: UUID, categoryID: UUID) async throws {
+        struct Params: Encodable { let p_vehicle_id: UUID; let p_category_id: UUID }
+        try await client.rpc("set_my_vehicle_transport_category", params: Params(p_vehicle_id: id, p_category_id: categoryID)).execute()
+    }
+
     func createVehicle(_ draft: VehicleDraft) async -> VehicleFormResult {
         let params = CreateVehicleParams(
             p_brand: draft.brand,
@@ -66,6 +76,7 @@ final class VehicleRepository {
             p_transmission: draft.transmission,
             p_engine: draft.engine,
             p_mileage: draft.mileage,
+            p_transport_category_id: draft.transportCategoryID,
             p_make_primary: draft.makePrimary
         )
         do {

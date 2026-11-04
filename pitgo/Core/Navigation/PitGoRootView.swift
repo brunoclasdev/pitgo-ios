@@ -382,7 +382,7 @@ private struct ClientMainTabView: View {
                                 catalogRepository: catalogRepository,
                                 onBack: { homePath.removeLast() }
                             )
-                        case .guincho:
+                        case .guincho, .guinchoSearchResume:
                             GuinchoMapView(
                                 userID: snapshot.userID,
                                 repository: guinchoRepository,
@@ -474,7 +474,13 @@ private struct ClientMainTabView: View {
                 }
                 .task {
                     guard homePath.isEmpty else { return }
-                    switch await dispatchResumeCoordinator.resolveForClient() {
+                    if case let .success(resume) = await guinchoRepository.searchResume(), resume.isResumable, homePath.isEmpty {
+                        homePath = [.guinchoSearchResume]
+                        return
+                    }
+                    let destination = await dispatchResumeCoordinator.resolveForClient()
+                    guard homePath.isEmpty else { return }
+                    switch destination {
                     case let .clientSearch(searchID):
                         homePath.append(.mobileDispatchSearch(searchID: searchID))
                         return
@@ -513,6 +519,24 @@ private struct ClientMainTabView: View {
                     onSignOut: onSignOut,
                     onSwitchAccountForMigration: onSignOut
                 )
+            }
+        }
+        .task(id: snapshot.userID) {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard !Task.isCancelled else { return }
+                guard scenePhase == .active else { continue }
+                let expectedPath = homePath
+                let eligible: Bool
+                if expectedPath.isEmpty { eligible = true }
+                else if case .mobileDispatchSearch = expectedPath.last { eligible = true }
+                else { eligible = false }
+                guard eligible else { continue }
+                if case let .success(resume) = await guinchoRepository.searchResume(), resume.isResumable,
+                   homePath == expectedPath {
+                    selectedTab = .home
+                    homePath = [.guinchoSearchResume]
+                }
             }
         }
         .task(id: snapshot.userID) {

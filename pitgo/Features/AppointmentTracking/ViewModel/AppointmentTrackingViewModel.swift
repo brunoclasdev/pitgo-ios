@@ -19,6 +19,10 @@ final class AppointmentTrackingViewModel: ObservableObject {
     private var currentVersion: Int64 = -1
     private var staleTask: Task<Void, Never>?
     private var isConnected = false
+    private var connectionTask: Task<Void, Never>?
+    private var locationTask: Task<Void, Never>?
+    private var pollTask: Task<Void, Never>?
+    private var generation = UUID()
 
     init(repository: AppointmentTrackingRepository) {
         self.repository = repository
@@ -27,15 +31,30 @@ final class AppointmentTrackingViewModel: ObservableObject {
     func connect(appointmentID: UUID) {
         guard !isConnected else { return }
         isConnected = true
-        Task { [weak self] in
+        let publisher = ClientAppointmentLocationPublisher(repository: repository)
+        locationTask = Task { await publisher.run(appointmentID: appointmentID) }
+        currentVersion = -1
+        marker = .unavailable
+        let generation = UUID()
+        self.generation = generation
+        connectionTask = Task { [weak self] in
             guard let self else { return }
-            let snapshot = await repository.connect(appointmentID: appointmentID) { [weak self] payload in
+            let snapshot = await repository.connect(appointmentID: appointmentID) { [weak self] _ in
                 Task { @MainActor in
-                    self?.apply(payload)
+                    guard let self, self.generation == generation, self.isConnected else { return }
+                    await self.refresh(appointmentID: appointmentID, generation: generation)
                 }
             }
-            if let snapshot {
-                apply(snapshot)
+            guard !Task.isCancelled, self.generation == generation, isConnected else { return }
+            if let snapshot { apply(snapshot) }
+        }
+        // Keep updating even if Realtime is unavailable or reconnects without a broadcast.
+        pollTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled, self.generation == generation, isConnected {
+                await refresh(appointmentID: appointmentID, generation: generation)
+                do { try await Task.sleep(nanoseconds: 5_000_000_000) }
+                catch { return }
             }
         }
     }
@@ -43,14 +62,46 @@ final class AppointmentTrackingViewModel: ObservableObject {
     func disconnect() {
         guard isConnected else { return }
         isConnected = false
+        locationTask?.cancel()
+        locationTask = nil
+        generation = UUID()
+        connectionTask?.cancel()
+        connectionTask = nil
+        pollTask?.cancel()
+        pollTask = nil
         staleTask?.cancel()
         staleTask = nil
-        Task { [repository] in
-            await repository.disconnect()
-        }
+        Task { [repository] in await repository.disconnect() }
+    }
+
+    private var refreshing = false
+    private func refresh(appointmentID: UUID, generation: UUID) async {
+        guard !refreshing else { return }
+        refreshing = true
+        defer { refreshing = false }
+        let snapshot = await repository.fetchSnapshot(appointmentID: appointmentID)
+        guard !Task.isCancelled, self.generation == generation, isConnected else { return }
+        if let snapshot { apply(snapshot) }
     }
 
     private func apply(_ snapshot: AppointmentProviderLocationSnapshot) {
+        if snapshot.isEnded {
+            marker = .ended
+            locationTask?.cancel()
+            staleTask?.cancel()
+            pollTask?.cancel()
+            return
+        }
+        if case .ended = marker { return }
+        applyPosition(snapshot)
+    }
+
+    private func applyPosition(_ snapshot: AppointmentProviderLocationSnapshot) {
+        if snapshot.state == "EMPTY" {
+            // Like Android, an empty snapshot must not erase a known position on reconnect.
+            if currentVersion < 0 { marker = .unavailable }
+            return
+        }
         guard let version = snapshot.version, version >= currentVersion else { return }
         guard let latitude = snapshot.latitude, let longitude = snapshot.longitude, let publishedAt = snapshot.publishedAt else {
             marker = .unavailable
@@ -58,28 +109,14 @@ final class AppointmentTrackingViewModel: ObservableObject {
         }
         currentVersion = version
         let location = CLLocationCoordinate2D(latitude: NSDecimalNumber(decimal: latitude).doubleValue, longitude: NSDecimalNumber(decimal: longitude).doubleValue)
+        guard CLLocationCoordinate2DIsValid(location) else { return }
+        staleTask?.cancel()
         if snapshot.fresh == false {
             marker = .stale(location: location, updatedAt: publishedAt)
         } else {
             marker = .live(location: location, updatedAt: publishedAt)
             scheduleStale(after: publishedAt)
         }
-    }
-
-    private func apply(_ payload: BroadcastLocationPayload) {
-        guard let version = payload.version, version > currentVersion else { return }
-        currentVersion = version
-
-        if payload.event == "CLEARED" {
-            marker = .ended
-            staleTask?.cancel()
-            return
-        }
-
-        guard let latitude = payload.latitude, let longitude = payload.longitude, let publishedAt = payload.publishedAt else { return }
-        let location = CLLocationCoordinate2D(latitude: NSDecimalNumber(decimal: latitude).doubleValue, longitude: NSDecimalNumber(decimal: longitude).doubleValue)
-        marker = .live(location: location, updatedAt: publishedAt)
-        scheduleStale(after: publishedAt)
     }
 
     /// Transiciona para `.stale` em `publishedAt + 30s` mesmo sem outro evento (SC-006).

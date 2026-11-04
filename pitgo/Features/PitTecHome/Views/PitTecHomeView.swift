@@ -17,6 +17,7 @@ struct PitTecHomeView: View {
     @State private var showSignOutConfirmation = false
     @State private var path: [PitGoRoute] = []
 
+    let dashboardRepository: ProviderDashboardRepository
     let providerID: UUID
     let pitTecRepository: PitTecRepository
     let onSignOut: () -> Void
@@ -30,6 +31,7 @@ struct PitTecHomeView: View {
         locationRepository: DeviceLocationRepository,
         onSignOut: @escaping () -> Void
     ) {
+        dashboardRepository = repository
         _viewModel = StateObject(wrappedValue: PitTecHomeViewModel(
             repository: repository,
             snapshot: snapshot,
@@ -58,7 +60,7 @@ struct PitTecHomeView: View {
                         .id(appointmentID)
                     case .serviceMap, .requestService, .providerMigrationStart, .appointmentTracking, .guinchoInspectionReview,
                          .providerAppointmentTracking, .mobileDispatchNewSearch, .mobileDispatchSearch,
-                         .providerRequest, .providerGuinchoHistory, .pitTec, .clientAddress, .paymentMethods, .guincho, .storeCatalog:
+                         .providerRequest, .providerGuinchoHistory, .pitTec, .clientAddress, .paymentMethods, .guincho, .guinchoSearchResume, .storeCatalog:
                         EmptyView()
                     }
                 }
@@ -88,7 +90,10 @@ struct PitTecHomeView: View {
                 case .values:
                     PitTecHomeValuesTab(pricingState: viewModel.pricingState)
                 case .profile:
-                    PitTecHomeProfileTab(viewModel: viewModel, snapshot: snapshot, showSignOutConfirmation: $showSignOutConfirmation, onSignOut: onSignOut)
+                    VStack {
+                        NavigationLink("Editar cadastro") { RegistrationEditView(client: dashboardRepository.client) }
+                        PitTecHomeProfileTab(viewModel: viewModel, snapshot: snapshot, showSignOutConfirmation: $showSignOutConfirmation, onSignOut: onSignOut)
+                    }
                 }
             }
         case .failure:

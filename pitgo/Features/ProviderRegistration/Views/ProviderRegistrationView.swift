@@ -248,12 +248,21 @@ struct ProviderRegistrationView: View {
 
     @ViewBuilder
     private func vehicleFields(_ content: EditingContent) -> some View {
+        Picker("Tipo/porte do guincho", selection: Binding(get: { content.draft.guinchoSizeID }, set: { viewModel.selectGuinchoSize($0) })) {
+            Text("Selecione o porte").tag(UUID?.none)
+            ForEach(viewModel.guinchoSizes) { Text($0.name).tag(Optional($0.id)) }
+        }
+        .task { await viewModel.loadTransportCatalog() }
+        if content.fieldErrors[.vehicle(.size)] != nil { Text("Selecione o tipo/porte do guincho.").foregroundStyle(.red) }
+        if viewModel.transportCatalogFailed {
+            Button("Tentar carregar portes") { Task { await viewModel.loadTransportCatalog() } }
+        }
         labeledField("Placa", error: content.fieldErrors[.vehicle(.plate)]) {
             TextField("ABC1D23", text: Binding(get: { content.draft.vehiclePlate }, set: { viewModel.updateVehiclePlate($0) }))
                 .textInputAutocapitalization(.characters).autocorrectionDisabled().focused($focusedField, equals: .vehicle(.plate))
         }
         labeledField("Marca", error: content.fieldErrors[.vehicle(.make)]) {
-            TextField("Marca", text: Binding(get: { content.draft.vehicleMake }, set: { viewModel.updateVehicleMake($0) }))
+            VehicleMakePicker(selection: Binding(get: { content.draft.vehicleMake }, set: { viewModel.updateVehicleMake($0) }))
                 .focused($focusedField, equals: .vehicle(.make))
         }
         labeledField("Modelo", error: content.fieldErrors[.vehicle(.model)]) {

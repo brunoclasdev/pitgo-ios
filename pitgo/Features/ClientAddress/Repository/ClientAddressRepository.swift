@@ -26,7 +26,7 @@ enum ClientAddressSaveResult {
 }
 
 final class ClientAddressRepository {
-    private let client: SupabaseClient
+    let client: SupabaseClient
 
     init(client: SupabaseClient) {
         self.client = client

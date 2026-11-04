@@ -25,6 +25,7 @@ struct Vehicle: Decodable, Identifiable, Hashable {
     let engine: String?
     let mileage: Int?
     let isPrimary: Bool
+    var transportCategoryID: UUID? = nil
     let active: Bool
 
     enum CodingKeys: String, CodingKey {
@@ -37,6 +38,7 @@ struct Vehicle: Decodable, Identifiable, Hashable {
         case fuelType = "fuel_type"
         case transmission, engine, mileage
         case isPrimary = "is_primary"
+        case transportCategoryID = "transport_category_id"
         case active
     }
 
@@ -64,6 +66,7 @@ struct VehicleDraft {
     var transmission: String?
     var engine: String?
     var mileage: Int?
+    var transportCategoryID: UUID? = nil
     var makePrimary: Bool
 }
 

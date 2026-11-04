@@ -36,9 +36,10 @@ enum ProviderRegistrationValidation {
             if plate.range(of: "^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$", options: .regularExpression) == nil { errors[.vehicle(.plate)] = .invalidFormat }
             if make.isEmpty { errors[.vehicle(.make)] = .required }
             if model.isEmpty { errors[.vehicle(.model)] = .required }
+            if draft.guinchoSizeID == nil { errors[.vehicle(.size)] = .required }
             if color.isEmpty { errors[.vehicle(.color)] = .required }
             if errors[.vehicle(.plate)] == nil && errors[.vehicle(.make)] == nil && errors[.vehicle(.model)] == nil && errors[.vehicle(.color)] == nil {
-                vehicle = NormalizedProviderVehicle(plate: plate, make: make, model: model, color: color)
+                vehicle = NormalizedProviderVehicle(plate: plate, make: make, model: model, color: color, guinchoSizeID: draft.guinchoSizeID)
             }
         }
 

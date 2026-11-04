@@ -60,7 +60,7 @@ struct GuinchoMapView: View {
 
     var body: some View {
         ZStack {
-            mapSection
+            mapSection.ignoresSafeArea(edges: .bottom)
             // Keep every flow card fixed to the top edge. The map remains underneath and can
             // receive gestures outside the bounded, visible ScrollView.
             VStack(spacing: 0) {
@@ -75,7 +75,9 @@ struct GuinchoMapView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: onBack) {
+                Button(action: {
+                    Task { if await viewModel.closeSearch() { onBack() } }
+                }) {
                     Image(systemName: "chevron.left")
                 }
                 .frame(minWidth: 44, minHeight: 44)
@@ -83,8 +85,8 @@ struct GuinchoMapView: View {
             }
         }
         .task {
-            viewModel.start()
-            if viewModel.state.stage == .pickup, viewModel.state.pickup == nil {
+            await viewModel.start()
+            if viewModel.state.stage == .pickup, viewModel.state.pickup == nil, viewModel.state.failure == nil {
                 viewModel.locate()
             }
         }
@@ -180,7 +182,20 @@ struct GuinchoMapView: View {
                 if state.operation != .idle {
                     ProgressView().frame(maxWidth: .infinity)
                 }
+                if state.resumedAfterDecline {
+                    Text("O guincheiro recusou. Escolha outro prestador. O acompanhamento financeiro permanece no histórico.")
+                        .font(PitGoTypography.body)
+                }
+                if state.failure == .vehicleCategoryRequired {
+                    Button("Completar categoria na Garagem", action: onGarage)
+                }
                 if let failure = state.failure {
+                    Button("Tentar novamente") {
+                        Task {
+                            await viewModel.start()
+                            if viewModel.state.stage == .pickup, viewModel.state.failure == nil { viewModel.locate() }
+                        }
+                    }.disabled(state.operation != .idle)
                     Text(failureMessage(failure))
                         .font(PitGoTypography.caption)
                         .foregroundStyle(.red)
@@ -308,7 +323,7 @@ struct GuinchoMapView: View {
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(state.vehicleID == vehicle.id ? tokens.accent.opacity(0.2) : tokens.background, in: Capsule())
-                            .overlay(Capsule().stroke(state.vehicleID == vehicle.id ? tokens.accent : tokens.outline, lineWidth: 1))
+                            .overlay(Capsule().stroke(tokens.accent, lineWidth: 1))
                     }
                 }
             }
@@ -323,6 +338,7 @@ struct GuinchoMapView: View {
     @ViewBuilder
     private func discoveryStage(_ state: GuinchoMapState) -> some View {
         if let provider = state.selected {
+            if let sizeName = provider.sizeName { Text(sizeName).font(PitGoTypography.caption) }
             Text(provider.name)
                 .font(PitGoTypography.sectionTitle)
                 .accessibilityAddTraits(.isHeader)
@@ -363,6 +379,11 @@ struct GuinchoMapView: View {
 
     private func failureMessage(_ reason: GuinchoFailureReason) -> String {
         switch reason {
+        case .vehicleCategoryRequired: "Complete a categoria do veículo na Garagem para solicitar guincho."
+        case .guinchoSizeRequired: "O guincho precisa ter um porte cadastrado."
+        case .incompatibleVehicle: "Este guincho não é compatível. Atualize a busca e escolha outro prestador."
+        case .providerExcluded: "Este guincheiro recusou o atendimento. Escolha outro prestador."
+        case .catalogConflict: "O cadastro mudou. Atualize a busca."
         case .invalidInput: "Revise os dados informados."
         case .sessionExpired: "Sua sessão expirou."
         case .offline: "Sem conexão com a internet."

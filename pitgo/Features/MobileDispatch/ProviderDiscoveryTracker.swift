@@ -25,19 +25,39 @@ final class ProviderDiscoveryTracker: ObservableObject {
 
     private let locationRepository: DeviceLocationRepository
     private let dispatchRepository: MobileDispatchRepository
-    private let trackerInstanceID = UUID()
+    @Published private(set) var isWaitingForPublisherRecovery = false
+    private let leaseStore: ProviderPublisherLeaseStore
+    private let scope: String
+    private let conflictRetryDelay: TimeInterval
+    private var ownerID = UUID()
+    private var generation = UUID()
     private var updatesTask: Task<Void, Never>?
+    private var startupTask: Task<Void, Never>?
+    private var recoveryTask: Task<Void, Never>?
     private var lastPublishAttempt: Date?
-    private var sequence: Int64 = 0
+    private var conflictRecoveries = 0
     private let publishInterval: TimeInterval = 10
 
-    init(locationRepository: DeviceLocationRepository, dispatchRepository: MobileDispatchRepository) {
+    init(locationRepository: DeviceLocationRepository, dispatchRepository: MobileDispatchRepository,
+         accountID: UUID, environment: String = EnvironmentConfig.current.fingerprint,
+         leaseStore: ProviderPublisherLeaseStore? = nil, conflictRetryDelay: TimeInterval = 31) {
+        let leaseStore = leaseStore ?? .shared
         self.locationRepository = locationRepository
         self.dispatchRepository = dispatchRepository
+        self.leaseStore = leaseStore
+        self.scope = leaseStore.scope(accountID: accountID, environment: environment)
+        self.conflictRetryDelay = conflictRetryDelay
     }
 
-    func start() {
-        guard state == .stopped else { return }
+    func start() { start(recoveringConflict: false) }
+
+    func restart() {
+        stop()
+        start()
+    }
+
+    private func start(recoveringConflict: Bool) {
+        guard startupTask == nil, updatesTask == nil else { return }
         guard DeviceLocationServiceStatus.isEnabled else {
             state = .degraded(reason: .locationServicesDisabled)
             return
@@ -46,68 +66,111 @@ final class ProviderDiscoveryTracker: ObservableObject {
         case .denied, .restricted:
             state = .degraded(reason: .permissionDenied)
             return
-        case .notDetermined:
-            break
-        case .authorizedWhenInUse:
-            // Publicar enquanto "Disponível" precisa sobreviver ao segundo plano (FR-005) —
-            // solicitada só neste momento (ação visível), nunca no cadastro (research.md §3/§8).
-            locationRepository.requestAlwaysAuthorization()
-        case .authorizedAlways:
-            break
+        case .authorizedWhenInUse: locationRepository.requestAlwaysAuthorization()
+        case .notDetermined: locationRepository.requestWhenInUseAuthorization()
+        case .authorizedAlways: break
         }
-
+        if !recoveringConflict { conflictRecoveries = 0 }
+        recoveryTask?.cancel()
+        recoveryTask = nil
+        isWaitingForPublisherRecovery = false
+        lastPublishAttempt = nil
+        generation = UUID()
+        ownerID = UUID()
+        let token = generation
+        let ownerID = ownerID
+        let previousCleanup = leaseStore.claim(scope: scope, ownerID: ownerID) { [weak self] in
+            guard let self, self.ownerID == ownerID else { return }
+            self.stop()
+        }
         state = .starting
-        let stream = locationRepository.startHighPrecisionUpdates()
-        updatesTask = Task { [weak self] in
-            guard let self else { return }
-            for await fix in stream {
-                if Task.isCancelled { break }
-                await self.handle(fix: fix)
+        startupTask = Task { [weak self] in
+            await previousCleanup?.value
+            guard let self, !Task.isCancelled, generation == token,
+                  leaseStore.isOwner(scope: scope, ownerID: ownerID) else { return }
+            let stream = locationRepository.startHighPrecisionUpdates()
+            updatesTask = Task { [weak self] in
+                guard let self else { return }
+                for await fix in stream {
+                    guard !Task.isCancelled, generation == token else { break }
+                    await handle(fix: fix, generation: token, ownerID: ownerID)
+                }
             }
+            startupTask = nil
         }
-        state = .active(lastPublishedAt: Date())
     }
 
     func stop() {
-        guard state != .stopped else { return }
-        state = .stopping
+        generation = UUID()
+        recoveryTask?.cancel()
+        recoveryTask = nil
+        isWaitingForPublisherRecovery = false
+        let previousStartup = startupTask
+        startupTask?.cancel()
+        startupTask = nil
+        let previousUpdates = updatesTask
         updatesTask?.cancel()
         updatesTask = nil
-        locationRepository.stopHighPrecisionUpdates()
-        let repository = dispatchRepository
-        let trackerInstanceID = trackerInstanceID
-        Task { await repository.stopDiscoveryLocation(trackerInstanceID: trackerInstanceID) }
+        let ownerID = ownerID
+        let ownsPublisher = leaseStore.isOwner(scope: scope, ownerID: ownerID)
+        if ownsPublisher { locationRepository.stopHighPrecisionUpdates() }
+        if ownsPublisher && !leaseStore.hasCleanup(scope: scope, ownerID: ownerID) {
+            let trackerID = leaseStore.lease(scope: scope).trackerID
+            let scope = scope
+            let cleanup = Task { [leaseStore, dispatchRepository] in
+                // An older publish must finish before releasing its row or starting its successor.
+                await previousStartup?.value
+                await previousUpdates?.value
+                guard leaseStore.isOwner(scope: scope, ownerID: ownerID) else { return }
+                await dispatchRepository.stopDiscoveryLocation(trackerInstanceID: trackerID)
+                leaseStore.release(scope: scope, ownerID: ownerID)
+            }
+            leaseStore.setCleanup(cleanup, scope: scope, ownerID: ownerID)
+        }
         state = .stopped
     }
 
-    private func handle(fix: DeviceLocationFix) async {
+    private func handle(fix: DeviceLocationFix, generation token: UUID, ownerID: UUID) async {
         lastFix = fix
+        guard (-90...90).contains(fix.latitude), (-180...180).contains(fix.longitude),
+              fix.horizontalAccuracy > 0, fix.horizontalAccuracy <= 100,
+              Date().timeIntervalSince(fix.timestamp) <= 30, fix.timestamp.timeIntervalSinceNow <= 10 else { return }
         let now = Date()
         if let last = lastPublishAttempt, now.timeIntervalSince(last) < publishInterval { return }
+        guard let sequence = leaseStore.nextSequence(scope: scope, ownerID: ownerID) else { return }
         lastPublishAttempt = now
-        sequence += 1
-        let result = await dispatchRepository.publishDiscoveryLocation(fix: fix, trackerInstanceID: trackerInstanceID, sequence: sequence)
-        apply(result)
-    }
-
-    private func apply(_ result: DiscoveryPublishOutcome) {
+        let trackerID = leaseStore.lease(scope: scope).trackerID
+        let result = await dispatchRepository.publishDiscoveryLocation(fix: fix, trackerInstanceID: trackerID, sequence: sequence)
+        guard !Task.isCancelled, generation == token, leaseStore.isOwner(scope: scope, ownerID: ownerID) else { return }
         switch result {
-        case let .published(_, publishedAt):
-            state = .active(lastPublishedAt: publishedAt)
-        case .ignored:
-            break
+        case let .published(_, publishedAt): state = .active(lastPublishedAt: publishedAt)
+        case .ignored: break
         case .publisherConflict:
             stop()
             state = .degraded(reason: .publisherConflict)
+            // A one-time migration/relaunch can leave the previous random ID leased for 30s.
+            // Wait for server expiry once; never forcibly replace another active publisher.
+            if conflictRecoveries == 0 {
+                conflictRecoveries += 1
+                let token = generation
+                isWaitingForPublisherRecovery = true
+                recoveryTask = Task { [weak self] in
+                    guard let self else { return }
+                    do { try await Task.sleep(nanoseconds: UInt64(conflictRetryDelay * 1_000_000_000)) }
+                    catch { return }
+                    guard generation == token, !Task.isCancelled else { return }
+                    isWaitingForPublisherRecovery = false
+                    recoveryTask = nil
+                    start(recoveringConflict: true)
+                }
+            }
         case let .failure(reason):
             switch reason {
             case .sessionExpired:
                 stop()
                 state = .degraded(reason: .sessionExpired)
-            case .offline:
-                state = .degraded(reason: .offline)
-            default:
-                state = .degraded(reason: .service)
+            case .offline: state = .degraded(reason: .offline)
+            default: state = .degraded(reason: .service)
             }
         }
     }
