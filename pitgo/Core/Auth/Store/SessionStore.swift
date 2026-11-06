@@ -18,6 +18,13 @@ import Supabase
 final class SessionStore: ObservableObject {
     @Published private(set) var state: AppSessionState = .initializing
 
+    @Published private(set) var memberships: [RegistrationMembership] = []
+    private static var recoveryKey: String { "pitgo.recoveryPending." + (Bundle.main.object(forInfoDictionaryKey: "ENVIRONMENT_ID") as? String ?? "") }
+    private var recoveryActive = false {
+        didSet { UserDefaults.standard.set(recoveryActive, forKey: Self.recoveryKey) }
+    }
+    private var verificationGeneration = 0
+    private var startProviderOperation = UUID()
     private let client: SupabaseClient
     private let accountContextRepository: AccountContextRepository
     private var signOutWatcherTask: Task<Void, Never>?
@@ -25,6 +32,8 @@ final class SessionStore: ObservableObject {
     init(client: SupabaseClient) {
         self.client = client
         accountContextRepository = AccountContextRepository(client: client)
+        recoveryActive = UserDefaults.standard.bool(forKey: Self.recoveryKey)
+        if recoveryActive { state = .passwordRecovery(valid: false) }
     }
 
     /// Chamado uma vez em `pitgoApp.swift`. Inicia a verificação inicial e o observador de sign-out
@@ -44,8 +53,17 @@ final class SessionStore: ObservableObject {
         signOutWatcherTask = Task { [weak self] in
             guard let self else { return }
             for await authChangeEvent in client.auth.authStateChanges {
+                if authChangeEvent.event == .passwordRecovery {
+                    self.recoveryActive = true
+                    self.verificationGeneration += 1
+                    self.state = .passwordRecovery(valid: true)
+                }
                 if authChangeEvent.event == .signedOut {
-                    await MainActor.run { self.state = .unauthenticated(reason: .sessionInvalid) }
+                    self.verificationGeneration += 1
+                    self.recoveryActive = false
+                    self.memberships = []
+                    self.accountContextRepository.selectedMode = nil
+                    self.state = .unauthenticated(reason: .sessionInvalid)
                 }
             }
         }
@@ -54,11 +72,19 @@ final class SessionStore: ObservableObject {
     /// Valida a sessão local (se houver), consulta o papel autoritativo e emite o único estado
     /// exclusivo resultante. Chamado na inicialização e explicitamente após login/cadastro/retry.
     func bootstrap() async {
+        guard !recoveryActive else { return }
+        verificationGeneration += 1
+        let generation = verificationGeneration
         state = .verifying
         do {
             let session = try await client.auth.session
             let email = session.user.email ?? ""
-            switch await accountContextRepository.fetchContext(userID: session.user.id, authEmail: email) {
+            let result = await accountContextRepository.fetchContext(userID: session.user.id, authEmail: email)
+            guard generation == verificationGeneration, !recoveryActive else { return }
+            memberships = accountContextRepository.memberships
+            switch result {
+            case let .registration(identity, mode):
+                state = .registrationRequired(identity, mode)
             case let .client(snapshot):
                 state = .authenticatedClient(snapshot)
             case let .providerOnboarding(identity):
@@ -71,11 +97,13 @@ final class SessionStore: ObservableObject {
                 state = .offlineVerification
             }
         } catch let authError as AuthError where authError.errorCode == .sessionNotFound {
+            guard generation == verificationGeneration, !recoveryActive else { return }
             state = .unauthenticated(reason: nil)
         } catch is CancellationError {
             // Ignorado: a `Task` pai foi cancelada, não é uma falha de domínio.
         } catch {
             // Sessão local pode existir, mas não pôde ser validada/renovada (sem rede, timeout).
+            guard generation == verificationGeneration, !recoveryActive else { return }
             state = .offlineVerification
         }
     }
@@ -117,8 +145,46 @@ final class SessionStore: ObservableObject {
     }
 
     func signOut() async {
+        verificationGeneration += 1
+        recoveryActive = false
+        memberships = []
+        accountContextRepository.selectedMode = nil
         try? await client.auth.signOut(scope: .local)
         state = .unauthenticated(reason: .loggedOut)
+    }
+
+    func selectMode(_ mode: AccountType) async {
+        accountContextRepository.selectedMode = mode
+        await bootstrap()
+    }
+
+    func beginProviderRegistration() async throws -> AuthIdentity {
+        let session = try await client.auth.session
+        _ = try await RegistrationVerificationRepository(client: client).start(.provider, operation: startProviderOperation)
+        startProviderOperation = UUID()
+        return AuthIdentity(userID: session.user.id, authEmail: session.user.email ?? "")
+    }
+
+    func handleRecoveryURL(_ url: URL) async {
+        let expected = PasswordRecoveryViewModel.redirectURL
+        guard url.scheme == expected.scheme, url.host == expected.host, url.path == expected.path else { return }
+        verificationGeneration += 1
+        recoveryActive = true
+        state = .verifying
+        do {
+            // The SDK validates the PKCE verifier or recovery tokens with Auth before exposing a session.
+            _ = try await client.auth.session(from: url)
+            state = .passwordRecovery(valid: true)
+        } catch {
+            state = .passwordRecovery(valid: false)
+        }
+    }
+
+    func completePasswordRecovery(password: String) async throws {
+        guard recoveryActive, case .passwordRecovery(valid: true) = state else { throw CancellationError() }
+        _ = try await client.auth.update(user: UserAttributes(password: password))
+        recoveryActive = false
+        await bootstrap()
     }
 
     private func classifyAuthFailure(_ error: Error) -> LoginFailureReason {

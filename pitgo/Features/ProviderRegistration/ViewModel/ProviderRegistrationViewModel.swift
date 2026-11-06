@@ -61,6 +61,11 @@ final class ProviderRegistrationViewModel: ObservableObject {
             switch await repository.fetchOwnAggregate(accountID: accountID) {
             case let .complete(summary):
                 state = .alreadyRegistered(summary)
+            case let .draft(draft):
+                state = .editing(EditingContent(draft: draft))
+                await loadCategories()
+                if let categoryID = draft.primaryCategoryID { retryServices(for: categoryID) }
+                if draft.providerKind != .store { resolveImplicitService(for: draft.locationMode) }
             case .none:
                 var draft = ProviderRegistrationDraft(company: CompanyDraft(email: authEmail))
                 draft.providerKind = providerKind

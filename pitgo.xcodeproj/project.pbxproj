@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A48E003A6BD34FE0B99B0001 /* PhoneNumberKit in Frameworks */ = {isa = PBXBuildFile; productRef = A48E003A6BD34FE0B99B0002 /* PhoneNumberKit */; };
 		781B9C27E5E7E4279800CAEA /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D801EA279C940B638AAE8CC1 /* Supabase */; };
 		8933B01E7933D2DE9661A64B /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 5226E011587828DEA76EDD52 /* MapLibre */; };
 		12768A62481B472C8D8973A5 /* CoreMethods in Frameworks */ = {isa = PBXBuildFile; productRef = 7F51A545298947ACA97B7B89 /* CoreMethods */; };
@@ -33,6 +34,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A48E003A6BD34FE0B99B0001 /* PhoneNumberKit in Frameworks */,
 				781B9C27E5E7E4279800CAEA /* Supabase in Frameworks */,
 				8933B01E7933D2DE9661A64B /* MapLibre in Frameworks */,
 				12768A62481B472C8D8973A5 /* CoreMethods in Frameworks */,
@@ -83,6 +85,7 @@
 			);
 			name = pitgo;
 			packageProductDependencies = (
+				A48E003A6BD34FE0B99B0002 /* PhoneNumberKit */,
 				D801EA279C940B638AAE8CC1 /* Supabase */,
 				5226E011587828DEA76EDD52 /* MapLibre */,
 				7F51A545298947ACA97B7B89 /* CoreMethods */,
@@ -116,6 +119,7 @@
 			mainGroup = A2F9620A3055DC820023C0DF;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				A48E003A6BD34FE0B99B0003 /* XCRemoteSwiftPackageReference "PhoneNumberKit" */,
 				9C9C646A3DCD0D235222E132 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				1DD37843FA671AD6BB79D23D /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 				FFC00DEB69D7479388442F7D /* XCRemoteSwiftPackageReference "sdk-ios" */,
@@ -738,6 +742,11 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+        A48E003A6BD34FE0B99B0003 /* XCRemoteSwiftPackageReference "PhoneNumberKit" */ = {
+            isa = XCRemoteSwiftPackageReference;
+            repositoryURL = "https://github.com/PhoneNumberKit/PhoneNumberKit.git";
+            requirement = {kind = upToNextMajorVersion; minimumVersion = 5.0.13; };
+        };
 		1DD37843FA671AD6BB79D23D /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
@@ -765,6 +774,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+        A48E003A6BD34FE0B99B0002 /* PhoneNumberKit */ = {
+            isa = XCSwiftPackageProductDependency;
+            package = A48E003A6BD34FE0B99B0003 /* XCRemoteSwiftPackageReference "PhoneNumberKit" */;
+            productName = PhoneNumberKit;
+        };
 		5226E011587828DEA76EDD52 /* MapLibre */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 1DD37843FA671AD6BB79D23D /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;

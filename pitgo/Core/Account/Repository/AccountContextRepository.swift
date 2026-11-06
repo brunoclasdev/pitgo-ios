@@ -11,6 +11,7 @@ import Foundation
 import Supabase
 
 enum AccountContextResult {
+    case registration(AuthIdentity, AccountType)
     case client(AccountSnapshot)
     case providerOnboarding(AuthIdentity)
     case providerReady(ProviderSnapshot)
@@ -27,14 +28,25 @@ final class AccountContextRepository {
         accountRepository = AccountRepository(client: client)
     }
 
+    var selectedMode: AccountType?
+    private(set) var memberships: [RegistrationMembership] = []
+
     func fetchContext(userID: UUID, authEmail: String) async -> AccountContextResult {
         let context: AccountContext
         do {
-            context = try await client.rpc("get_my_account_context").execute().value
+            context = try await client.rpc("get_my_account_context_v2", params: selectedMode.map { ["p_account_type": $0.rawValue] } ?? [:]).execute().value
+            memberships = context.memberships
         } catch is CancellationError {
             return .offline
         } catch {
             return .offline
+        }
+
+        guard let membership = context.memberships.first(where: { $0.account_type == context.accountType }) else {
+            return .blocked(.roleMissing)
+        }
+        if !membership.can_use_marketplace && !membership.legacy_exempt && membership.verification_status != .approved {
+            return .registration(AuthIdentity(userID: userID, authEmail: authEmail), context.accountType)
         }
 
         switch context.accountType {
@@ -93,6 +105,7 @@ final class AccountContextRepository {
             guard let provider = providers.first, provider.accountID == accountID else {
                 return .blocked(.providerInconsistent)
             }
+            guard provider.active else { return .blocked(.providerInactive) }
             return .providerReady(ProviderSnapshot(
                 accountID: accountID,
                 authEmail: authEmail,

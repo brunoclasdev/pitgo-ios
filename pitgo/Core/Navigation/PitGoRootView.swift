@@ -14,6 +14,10 @@ import SwiftUI
 
 struct PitGoRootView: View {
     @EnvironmentObject private var sessionStore: SessionStore
+    @State private var providerRegistrationIdentity: AuthIdentity?
+    @State private var providerRegistrationPresented = false
+    @State private var startingProviderRegistration = false
+    @State private var registrationStartError: String?
 
     private let client: SupabaseClient
     private let accountRepository: AccountRepository
@@ -97,6 +101,12 @@ struct PitGoRootView: View {
                     onRetry: { Task { await sessionStore.retry() } },
                     onSignOut: { Task { await sessionStore.signOut() } }
                 )
+            case let .passwordRecovery(valid):
+                NavigationStack { PasswordRecoveryView(client: client, validRecoverySession: valid) }
+            case let .registrationRequired(identity, mode):
+                NavigationStack {
+                    RegistrationVerificationView(client: client, identity: identity, mode: mode)
+                }.id(identity.userID.uuidString + mode.rawValue)
             case .unauthenticated:
                 UnauthenticatedFlow(client: client, onboardingStore: onboardingStore)
             case let .authenticatedClient(snapshot):
@@ -189,8 +199,40 @@ struct PitGoRootView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if modeSwitchAvailable {
+                HStack {
+                    Spacer()
+                    if startingProviderRegistration { ProgressView() }
+                    Menu("Modalidade da conta", systemImage: "person.crop.circle") {
+                        ForEach(sessionStore.memberships, id: \.account_type) { membership in
+                            Button(membership.account_type == .client ? "Usar como cliente" : "Usar como prestador") {
+                                Task { await sessionStore.selectMode(membership.account_type) }
+                            }
+                        }
+                        if !sessionStore.memberships.contains(where: { $0.account_type == .provider }) {
+                            Button("Cadastrar como prestador") { openProviderRegistration() }
+                        }
+                    }.disabled(startingProviderRegistration)
+                }.padding(.horizontal).padding(.vertical, 6).background(.bar)
+            }
+        }
+        .sheet(isPresented: $providerRegistrationPresented) {
+            if let identity = providerRegistrationIdentity {
+                NavigationStack {
+                    RegistrationVerificationView(client: client, identity: identity, mode: .provider, onClose: { providerRegistrationPresented = false })
+                }
+            }
+        }
+        .alert("Cadastro de prestador", isPresented: Binding(get: { registrationStartError != nil }, set: { if !$0 { registrationStartError = nil } })) {
+            Button("OK", role: .cancel) { registrationStartError = nil }
+        } message: { Text(registrationStartError ?? "") }
         .pitGoTheme()
-        .onChange(of: sessionAuthenticationKey) { _ in
+        .onChange(of: sessionAuthenticationKey) { key in
+            if key == nil {
+                providerRegistrationPresented = false
+                providerRegistrationIdentity = nil
+            }
             if case let .authenticatedClient(snapshot) = sessionStore.state {
                 // Uma pendência local (`UserDefaults`) pode sobreviver a uma criação já concluída em
                 // outra sessão/dispositivo — o snapshot autoritativo do servidor sempre prevalece
@@ -205,6 +247,27 @@ struct PitGoRootView: View {
                 trackingStateRepository.stop()
             }
             wasProviderReady = isReady
+        }
+    }
+
+    private var modeSwitchAvailable: Bool {
+        switch sessionStore.state {
+        case .authenticatedClient, .authenticatedProviderReady, .registrationRequired: true
+        default: false
+        }
+    }
+
+    private func openProviderRegistration() {
+        guard !startingProviderRegistration else { return }
+        startingProviderRegistration = true
+        Task {
+            defer { startingProviderRegistration = false }
+            do {
+                providerRegistrationIdentity = try await sessionStore.beginProviderRegistration()
+                providerRegistrationPresented = true
+            } catch {
+                registrationStartError = RegistrationVerificationViewModel.message(error)
+            }
         }
     }
 
@@ -247,8 +310,8 @@ private struct UnauthenticatedFlow: View {
             .navigationDestination(for: UnauthenticatedRoute.self) { route in
                 switch route {
                 case .signUp:
-                    SignUpView(
-                        repository: SignUpRepository(client: client, onboardingStore: onboardingStore),
+                    BasicRegistrationView(
+                        client: client, mode: .client,
                         onAuthenticated: { _ in
                             Task { await sessionStore.bootstrap() }
                         }
@@ -258,8 +321,8 @@ private struct UnauthenticatedFlow: View {
                         path.append(.providerSignUp(kind: kind))
                     }
                 case let .providerSignUp(kind):
-                    ProviderSignUpView(
-                        repository: ProviderSignUpRepository(client: client),
+                    BasicRegistrationView(
+                        client: client, mode: .provider,
                         onAuthenticated: { userID in
                             UserDefaults.standard.set(kind.rawValue, forKey: "pitgo.pendingProviderKind.\(userID.uuidString)")
                             Task { await sessionStore.bootstrap() }

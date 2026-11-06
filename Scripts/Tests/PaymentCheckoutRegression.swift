@@ -47,7 +47,8 @@ enum CatalogResult { case content([Listing]) }
         return creation
     }
     func disconnect() {}
-    func subscribe(requestID: UUID, onChanged: @escaping @Sendable () -> Void) async {}
+    var onChanged: (@Sendable () -> Void)?
+    func subscribe(requestID: UUID, onChanged: @escaping @Sendable () -> Void) async { self.onChanged = onChanged }
 }
 
 typealias PaymentGateway = PaymentRepository
@@ -175,6 +176,55 @@ struct EnvironmentConfig {
         try await waitFor(recoveryVM, .awaitingPix(qr))
         precondition(recoveryVM.requestID == recoveredRequestID && recoveryRepo.creationCount == 0)
         recoveryVM.stop()
+        // Pix creation can return before reconciliation has generated its QR code.
+        let preparingRepo = PaymentRepository()
+        preparingRepo.creation = .created(PaymentCreationResult(paymentID: UUID(), status: .pending, pix: nil, syncState: "RECONCILING"))
+        let preparing = make(preparingRepo)
+        preparing.start()
+        try await waitFor(preparing, .selectingMethod(amount: 1, savedCards: cards.cards))
+        preparing.payWithPix()
+        try await waitFor(preparing, .loadingPixDetails)
+        preparingRepo.statuses = [.found(paymentID: UUID(), status: .pending, method: .pix,
+            details: PaymentStatusDetails(pix: qr, syncState: "RECONCILING"))]
+        preparingRepo.onChanged?()
+        try await waitFor(preparing, .awaitingPix(qr))
+        // Subsequent partial snapshots must not replace the displayed code with a spinner.
+        preparingRepo.statuses = [.found(paymentID: UUID(), status: .pending, method: .pix)]
+        preparingRepo.onChanged?()
+        try await Task.sleep(nanoseconds: 30_000_000)
+        precondition(preparing.state == .awaitingPix(qr) && preparingRepo.creationCount == 1)
+        preparing.stop()
+
+        let immediateRepo = PaymentRepository()
+        immediateRepo.creation = .created(PaymentCreationResult(paymentID: UUID(), status: .pending, pix: qr, syncState: "RECONCILING"))
+        let immediate = make(immediateRepo)
+        immediate.start()
+        try await waitFor(immediate, .selectingMethod(amount: 1, savedCards: cards.cards))
+        immediate.payWithPix()
+        try await waitFor(immediate, .awaitingPix(qr))
+        immediate.stop()
+
+        let restorePreparingRepo = PaymentRepository()
+        restorePreparingRepo.statuses = [.found(paymentID: UUID(), status: .pending, method: .pix)]
+        let restorePreparing = make(restorePreparingRepo)
+        restorePreparing.start()
+        try await waitFor(restorePreparing, .loadingPixDetails)
+        precondition(restorePreparingRepo.creationCount == 0)
+        restorePreparing.stop()
+        print("PASS: Pix waits for its QR code, displays available QR during reconciliation, preserves QR on partial snapshots and restores without duplicate charges")
+        // Returning from the banking app must fetch approval without recreating the charge.
+        let foregroundRepo = PaymentRepository()
+        foregroundRepo.statuses = [.found(paymentID: UUID(), status: .pending, method: .pix,
+            details: PaymentStatusDetails(pix: qr))]
+        let foreground = make(foregroundRepo)
+        foreground.start()
+        try await waitFor(foreground, .awaitingPix(qr))
+        foregroundRepo.statuses = [.found(paymentID: UUID(), status: .approved, method: .pix)]
+        foreground.refreshWhenActive()
+        try await waitFor(foreground, .approved)
+        precondition(foregroundRepo.creationCount == 0)
+        foreground.stop()
+        print("PASS: returning from the bank refreshes approval without creating a charge")
         print("PASS: reopened mobile checkout reuses pending payment request ID without creating a charge")
         print("PASS: cancellation requires server acknowledgement; unpaid guincho releases reservation; resumed Pix restores QR; cancellation never approves dispatch")
         print("PASS: restored rejection retains cards; CARD_REJECTED shows decline; restored pending exits loading; expired Pix can retry")

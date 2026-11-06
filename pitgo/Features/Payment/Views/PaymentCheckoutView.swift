@@ -19,6 +19,7 @@ struct PaymentCheckoutView: View {
     private static let logger = Logger(subsystem: "com.trustarx.pitgo", category: "PaymentCheckout")
     @Environment(\.pitGoTokens) private var tokens
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel: PaymentCheckoutViewModel
     @State private var copiedFeedback = false
     @State private var securityCodeField: SecurityCodeTextField?
@@ -77,6 +78,9 @@ struct PaymentCheckoutView: View {
         .interactiveDismissDisabled()
         .task { viewModel.start() }
         .onDisappear { viewModel.stop() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { viewModel.refreshWhenActive() }
+        }
         .onChange(of: viewModel.state) { state in
             if case .approved = state {
                 onApproved(viewModel.requestID)
@@ -122,7 +126,7 @@ struct PaymentCheckoutView: View {
 
     private var isAwaitingSimulatedConfirmation: Bool {
         switch viewModel.state {
-        case .loadingAmount, .awaitingPix, .awaitingCardConfirmation: true
+        case .loadingAmount, .loadingPixDetails, .awaitingPix, .awaitingCardConfirmation: true
         default: false
         }
     }
@@ -149,6 +153,16 @@ struct PaymentCheckoutView: View {
             selectingMethodState(amount: amount, savedCards: savedCards)
         case .confirmingCard:
             ProgressView()
+        case .loadingPixDetails:
+            VStack(spacing: 16) {
+                ProgressView("Gerando Pix…")
+                Text("Aguarde o QR Code e o código copia e cola para fazer o pagamento.")
+                    .font(PitGoTypography.caption)
+                    .foregroundStyle(tokens.textSecondary)
+                    .multilineTextAlignment(.center)
+                Button("Cancelar pagamento", role: .cancel, action: cancelCheckout)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
         case let .awaitingPix(pix):
             awaitingPixState(pix)
         case .awaitingCardConfirmation:
@@ -315,6 +329,10 @@ struct PaymentCheckoutView: View {
 
     private func awaitingPixState(_ pix: PaymentPixDetails) -> some View {
         VStack(spacing: 16) {
+            Text("Pague com Pix").font(PitGoTypography.body).bold()
+            Text("Escaneie o QR Code ou copie o código para pagar no aplicativo do seu banco.")
+                .font(PitGoTypography.caption)
+                .multilineTextAlignment(.center)
             if let image = decodeQRCode(pix.qrCodeBase64) {
                 Image(uiImage: image)
                     .resizable()

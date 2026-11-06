@@ -29,6 +29,9 @@ struct LoginView: View {
                 passwordField
                 submissionBanner
                 submitButton
+                NavigationLink("Esqueci minha senha") {
+                    PasswordRecoveryView(client: SupabaseClientProvider.client)
+                }
             }
             .padding(16)
         }

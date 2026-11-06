@@ -30,6 +30,7 @@ struct pitgoApp: App {
             PitGoRootView(client: SupabaseClientProvider.client)
                 .environmentObject(sessionStore)
                 .task { sessionStore.start() }
+                .onOpenURL { url in Task { await sessionStore.handleRecoveryURL(url) } }
                 .preferredColorScheme(appearance.colorScheme)
         }
     }

@@ -59,6 +59,7 @@ final class ProviderRegistrationRepository {
     enum AggregateFetchResult {
         /// Nenhum provider para esta conta — o formulário pode ser aberto.
         case none
+        case draft(ProviderRegistrationDraft)
         case complete(ProviderSummary)
         /// Provider sem exatamente um endereço ou sem oferta — inconsistência de contrato; o client
         /// não repara isso silenciosamente.
@@ -66,8 +67,15 @@ final class ProviderRegistrationRepository {
         case failure
     }
 
-    func fetchOwnAggregate(accountID: UUID) async -> AggregateFetchResult {
+    func fetchOwnAggregate(accountID: UUID, includeDraft: Bool = true) async -> AggregateFetchResult {
         do {
+            if includeDraft {
+                let registration = try await RegistrationVerificationRepository(client: client).current(.provider)
+                if registration.editable {
+                    if let draft = try await restoreDraft(registration.data) { return .draft(draft) }
+                    return .none
+                }
+            }
             let providers: [Provider] = try await client
                 .from("providers")
                 .select()
@@ -142,6 +150,49 @@ final class ProviderRegistrationRepository {
         }
     }
 
+    private func restoreDraft(_ data: [String: AnyJSON]) async throws -> ProviderRegistrationDraft? {
+        guard let provider = data["provider"]?.objectValue, let address = data["address"]?.objectValue else { return nil }
+        func numberText(_ value: AnyJSON?) -> String {
+            guard let value else { return "" }
+            switch value {
+            case let .string(text): return text
+            case let .integer(number): return String(number)
+            case let .double(number): return String(number)
+            default: return ""
+            }
+        }
+        func text(_ object: [String: AnyJSON], _ key: String) -> String { object[key]?.stringValue ?? "" }
+        var draft = ProviderRegistrationDraft(company: CompanyDraft(name: text(provider, "name"), description: text(provider, "description"), email: text(provider, "email"), phone: text(provider, "phone"), cnpj: text(provider, "cnpj")))
+        draft.locationMode = ProviderLocationMode(rawValue: text(provider, "location_mode")) ?? .fixed
+        draft.providerKind = draft.locationMode == .pittec ? .pittec : .guincho
+        let owner = try await client.auth.session.user.id
+        let providers: [Provider] = try await client.from("providers").select().eq("account_id", value: owner).limit(1).execute().value
+        if let kind = providers.first?.providerKind { draft.providerKind = kind }
+        if let vehicle = data["vehicles"]?.arrayValue?.first?.objectValue {
+            draft.vehiclePlate = text(vehicle, "plate")
+            draft.vehicleMake = text(vehicle, "make")
+            draft.vehicleModel = text(vehicle, "model")
+            draft.vehicleColor = text(vehicle, "color")
+            draft.guinchoSizeID = UUID(uuidString: text(vehicle, "guincho_size_id"))
+        }
+        draft.address = AddressDraft(street: text(address, "street"), number: text(address, "number"), neighborhood: text(address, "neighborhood"), postalCode: text(address, "zip_code"), city: text(address, "city"), state: BrazilianState(rawValue: text(address, "state")), complement: text(address, "complement"))
+        draft.offers = (data["offers"]?.arrayValue ?? []).compactMap { value in
+            guard let item = value.objectValue else { return nil }
+            var offer = OfferDraft()
+            offer.serviceID = UUID(uuidString: text(item, "service_id"))
+            offer.isFree = item["is_free"]?.boolValue ?? false
+            offer.priceInput = numberText(item["price"])
+            offer.durationInput = numberText(item["duration_minutes"])
+            offer.description = text(item, "description")
+            return offer
+        }
+        if let serviceID = draft.offers.first?.serviceID {
+            let services: [CatalogService] = try await client.from("services").select().eq("id", value: serviceID).limit(1).execute().value
+            draft.primaryCategoryID = services.first?.categoryID
+        }
+        return draft
+    }
+
     // MARK: - Submissão atômica (RPC já existente)
 
     enum SubmissionResult {
@@ -207,7 +258,19 @@ final class ProviderRegistrationRepository {
                 .execute()
                 .value
 
-            switch await fetchOwnAggregate(accountID: accountID) {
+            let registrationRepository = RegistrationVerificationRepository(client: client)
+            try await registrationRepository.sync(.provider)
+            if let vehicle = command.vehicle {
+                let registration = try await registrationRepository.current(.provider)
+                if registration.editable && !registration.vehicles.contains(where: { $0["plate"]?.stringValue == vehicle.plate }) {
+                    var data = registration.data
+                    var item: [String: AnyJSON] = ["id": .string(UUID().uuidString), "plate": .string(vehicle.plate), "make": .string(vehicle.make), "model": .string(vehicle.model), "color": .string(vehicle.color)]
+                    if let size = vehicle.guinchoSizeID { item["guincho_size_id"] = .string(size.uuidString) }
+                    data["vehicles"] = .array((registration.vehicles + [item]).map(AnyJSON.object))
+                    _ = try await registrationRepository.command("save_my_registration_draft", registration: registration, operation: UUID(), extra: ["p_account_type": .string("PROVIDER"), "p_data": .object(data)])
+                }
+            }
+            switch await fetchOwnAggregate(accountID: accountID, includeDraft: false) {
             case let .complete(summary):
                 return result.outcome == .created ? .created(summary) : .alreadyRegistered(summary)
             default:

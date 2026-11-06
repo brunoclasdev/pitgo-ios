@@ -6,6 +6,8 @@ import Foundation
 final class GuinchoRouteViewModel: ObservableObject {
     @Published private(set) var state: GuinchoRouteUIState = .closed
     @Published private(set) var latestFix: DeviceLocationFix?
+    @Published private(set) var remainingCoordinates: [CLLocationCoordinate2D] = []
+    private var progress = GuinchoRouteProgress()
     private let repository: GuinchoRouteRepository
     private let tracker: ProviderDiscoveryTracker
     private var fixSubscription: AnyCancellable?
@@ -41,6 +43,7 @@ final class GuinchoRouteViewModel: ObservableObject {
                 guard self.generation == token else { return }
                 if let route = saved.snapshot(), route.isValid(for: appointmentID, expectedDestination: self.destination) {
                     self.route = route
+                    self.updateRemainingRoute()
                     self.state = .ready(route)
                 }
                 self.refresh(reason: self.route == nil ? .initial : .resume)
@@ -61,6 +64,8 @@ final class GuinchoRouteViewModel: ObservableObject {
         appointmentID = nil
         destination = nil
         route = nil
+        progress = GuinchoRouteProgress()
+        remainingCoordinates = []
         currentFixes = []
         requestedInitial = false
         accessDenied = false
@@ -69,6 +74,7 @@ final class GuinchoRouteViewModel: ObservableObject {
 
     private func receive(_ fix: DeviceLocationFix) {
         latestFix = fix
+        updateRemainingRoute()
         guard appointmentID != nil, fix.horizontalAccuracy > 0,
               Date().timeIntervalSince(fix.timestamp) <= 10, fix.timestamp.timeIntervalSinceNow <= 5 else { return }
         if currentFixes.last?.timestamp != fix.timestamp { currentFixes.append(fix) }
@@ -103,6 +109,7 @@ final class GuinchoRouteViewModel: ObservableObject {
                 if let updated = payload.snapshot(), updated.isValid(for: appointmentID, expectedDestination: self.destination),
                    updated.routeVersion >= (self.route?.routeVersion ?? 0) {
                     self.route = updated
+                    self.updateRemainingRoute()
                     self.state = .ready(updated)
                     if reason == .deviation { self.currentFixes.removeAll() }
                 } else if payload.status == "PENDING" {
@@ -133,6 +140,7 @@ final class GuinchoRouteViewModel: ObservableObject {
             retryTask?.cancel()
             retryTask = nil
             route = nil
+            remainingCoordinates = []
         }
         state = .unavailable(route, failure.message)
         if failure.shouldRetry {
@@ -148,6 +156,10 @@ final class GuinchoRouteViewModel: ObservableObject {
             self.retryTask = nil
             self.refresh(reason: .retry)
         }
+    }
+
+    private func updateRemainingRoute() {
+        remainingCoordinates = progress.update(path: route?.coordinates ?? [], fix: latestFix)
     }
 
     nonisolated static func distance(fix: DeviceLocationFix, to path: [CLLocationCoordinate2D]) -> Double {

@@ -1,5 +1,5 @@
 {
-  "originHash" : "0f681d94e0ecc77e22915e2cea140865d8f6bdf3ae3c7df9ab78604d06749483",
+  "originHash" : "a7db46e6e02c44583afdec768ebef14d17b46b02cb13a3d2f6ce92ef7fc443e2",
   "pins" : [
     {
       "identity" : "maplibre-gl-native-distribution",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "13e41ab3d77ff5113e7e5d4ee87803b1f81f5683",
         "version" : "6.31.0"
+      }
+    },
+    {
+      "identity" : "phonenumberkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/PhoneNumberKit/PhoneNumberKit.git",
+      "state" : {
+        "revision" : "eae725a2e62eb2f291d8188dd457e2a7b28d5003",
+        "version" : "5.0.13"
       }
     },
     {

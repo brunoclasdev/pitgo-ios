@@ -18,6 +18,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+    <array><dict><key>CFBundleURLSchemes</key><array><string>$(PRODUCT_BUNDLE_IDENTIFIER).auth</string></array></dict></array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>LSApplicationQueriesSchemes</key>
@@ -65,7 +67,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Usamos sua localização para verificar o endereço da empresa no cadastro e para mostrar/buscar prestadores próximos no mapa.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Use a câmera para registrar a condição do veículo na vistoria do atendimento de Guincho.</string>
+	<string>Use a câmera para fotografar seus documentos de cadastro, suas selfies e a condição do veículo na vistoria do Guincho.</string>
 	<key>ENVIRONMENT_ID</key>
 	<string>$(ENVIRONMENT_ID)</string>
 	<key>SUPABASE_PROJECT_REF</key>

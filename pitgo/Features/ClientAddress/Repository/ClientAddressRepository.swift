@@ -81,6 +81,7 @@ final class ClientAddressRepository {
         do {
             let result: Envelope = try await client.rpc("upsert_my_client_address", params: params).execute().value
             guard let address = result.address else { return .unknown }
+            try await RegistrationVerificationRepository(client: client).sync(.client)
             return .success(address)
         } catch {
             return classify(error)

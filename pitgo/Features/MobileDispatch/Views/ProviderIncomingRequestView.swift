@@ -14,6 +14,7 @@ struct ProviderIncomingRequestView: View {
     @Environment(\.pitGoTokens) private var tokens
     @StateObject private var viewModel: ProviderIncomingRequestViewModel
     @StateObject private var routeViewModel: GuinchoRouteViewModel
+    @StateObject private var pickupRouteViewModel: GuinchoPickupRouteViewModel
     @State private var showCancellationSheet = false
     @State private var showInspection = false
     @State private var mapFix: DeviceLocationFix?
@@ -36,6 +37,7 @@ struct ProviderIncomingRequestView: View {
     ) {
         _viewModel = StateObject(wrappedValue: ProviderIncomingRequestViewModel(providerID: providerID, repository: repository))
         _routeViewModel = StateObject(wrappedValue: GuinchoRouteViewModel(repository: routeRepository, tracker: discoveryTracker))
+        _pickupRouteViewModel = StateObject(wrappedValue: GuinchoPickupRouteViewModel(tracker: discoveryTracker))
         self.inspectionRepository = inspectionRepository
         self.onBack = onBack
         self.onOpenTracking = onOpenTracking
@@ -65,8 +67,9 @@ struct ProviderIncomingRequestView: View {
                 syncRoute()
                 await locateMap()
             }
-            .onDisappear { viewModel.stop(); routeViewModel.stop() }
+            .onDisappear { viewModel.stop(); routeViewModel.stop(); pickupRouteViewModel.stop() }
             .onChange(of: viewModel.state) { _ in syncRoute() }
+            .onChange(of: mapFix) { _ in syncRoute() }
             .onChange(of: isSessionExpired) { expired in
                 if expired { onSessionExpired() }
             }
@@ -123,29 +126,19 @@ struct ProviderIncomingRequestView: View {
         let trip = mapSnapshot?.guinchoTrip
         let transporting = mapSnapshot?.appointment?.status == .inProgress
         let route = transporting ? activeRoute : nil
-        let fix = routeViewModel.latestFix ?? mapFix
-        let current: CLLocationCoordinate2D? = fix.flatMap {
-            guard Date().timeIntervalSince($0.timestamp) <= 30,
-                  $0.horizontalAccuracy > 0, $0.horizontalAccuracy <= 100 else { return nil }
-            return CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
-        }
-        let points: [CLLocationCoordinate2D] = route?.coordinates ?? trip.map { trip in
-            transporting ? [trip.pickup, trip.destination] : current.map { [$0, trip.pickup] } ?? [trip.pickup]
+        let current = GuinchoProviderMapPresentation.currentCoordinate(fixes: [routeViewModel.latestFix, mapFix])
+        let line = transporting ? routeViewModel.remainingCoordinates : pickupRouteViewModel.coordinates
+        let points: [CLLocationCoordinate2D] = trip.map { trip in
+            [current ?? trip.pickup, transporting ? trip.destination : trip.pickup]
         } ?? []
-        var annotations: [PitGoMapAnnotationItem] = []
-        if let trip {
-            annotations.append(.init(id: "pickup", coordinate: trip.pickup, title: "Retirada", symbolName: "car.fill"))
-            annotations.append(.init(id: "destination", coordinate: trip.destination, title: "Destino contratado", symbolName: "flag.fill"))
-        }
-        if let current {
-            annotations.append(.init(id: "provider", coordinate: current, title: "Você", symbolName: "truck.box.fill"))
-        } else if let route {
-            annotations.append(.init(id: "provider", coordinate: route.origin.point.coordinate, title: "Última posição usada na rota", symbolName: "truck.box.fill"))
-        }
+        let annotations = trip.map {
+            GuinchoProviderMapPresentation.annotations(pickup: $0.pickup, destination: $0.destination, transporting: transporting)
+        } ?? []
         return PitGoMapView(annotations: annotations, centerCoordinate: current ?? trip?.pickup,
             showsUserLocation: true, fitCoordinates: points.count >= 2 ? points : nil,
-            fitTrigger: transporting ? Int(route?.routeVersion ?? 0) + 1 : 0, fitBottomPadding: 340,
-            routeLine: route?.coordinates, routeVersion: route?.routeVersion, routeIsEstimated: false)
+            fitTrigger: transporting ? Int(route?.routeVersion ?? 0) + 1_000_000 : pickupRouteViewModel.fitTrigger,
+            followsFitCoordinates: true, fitBottomPadding: 340,
+            routeLine: line, routeVersion: nil, routeIsEstimated: false)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .topLeading) { MapAttributionView().padding(12) }
     }
@@ -342,6 +335,9 @@ struct ProviderIncomingRequestView: View {
                 case .accepted:
                     if snapshot.appointment?.arrivedAt == nil {
                         Text("A caminho da retirada.").font(PitGoTypography.body)
+                        if let message = pickupRouteViewModel.message {
+                            Text(message).font(PitGoTypography.caption).foregroundStyle(tokens.textSecondary)
+                        }
                         ExternalNavigationButton { await viewModel.externalNavigationDestination() }
                         if snapshot.allowedActions.contains(.arrive) {
                             Button(action: { viewModel.arrive() }) {
@@ -445,13 +441,22 @@ struct ProviderIncomingRequestView: View {
     private func syncRoute() {
         guard case let .reserved(snapshot, _) = viewModel.state,
               snapshot.dispatchKind == .guinchoDirect,
-              snapshot.appointment?.status == .inProgress,
               let appointmentID = snapshot.appointment?.appointmentID,
-              let destination = snapshot.guinchoTrip?.destination else {
+              let trip = snapshot.guinchoTrip else {
             routeViewModel.stop()
+            pickupRouteViewModel.stop()
             return
         }
-        routeViewModel.activate(appointmentID: appointmentID, destination: destination)
+        if snapshot.appointment?.status == .inProgress {
+            pickupRouteViewModel.stop()
+            routeViewModel.activate(appointmentID: appointmentID, destination: trip.destination)
+        } else if snapshot.appointment?.status == .accepted {
+            routeViewModel.stop()
+            pickupRouteViewModel.activate(appointmentID: appointmentID, pickup: trip.pickup, fallbackFix: mapFix)
+        } else {
+            routeViewModel.stop()
+            pickupRouteViewModel.stop()
+        }
     }
 
     private func failureState(lastConfirmed: MobileDispatchSnapshot?) -> some View {

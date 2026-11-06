@@ -10,6 +10,7 @@
 import Foundation
 
 struct AccountContext: Decodable {
+    let memberships: [RegistrationMembership]
     let accountType: AccountType
     let clientState: ClientState?
     let providerState: ProviderState?
@@ -17,6 +18,7 @@ struct AccountContext: Decodable {
     let legacyProviderMigrationAvailable: Bool
 
     enum CodingKeys: String, CodingKey {
+        case memberships
         case accountType = "account_type"
         case clientState = "client_state"
         case providerState = "provider_state"
@@ -25,13 +27,16 @@ struct AccountContext: Decodable {
     }
 }
 
-enum AccountType: String, Decodable {
+enum AccountType: String, Codable {
     case client = "CLIENT"
     case provider = "PROVIDER"
 }
 
 enum ClientState: String, Decodable {
     case ready = "READY"
+    case inactive = "INACTIVE"
+    case missing = "MISSING"
+    case inconsistent = "INCONSISTENT"
 }
 
 enum ProviderState: String, Decodable {
@@ -66,6 +71,7 @@ enum BlockedReason: Hashable {
     case roleMissing
     case roleAmbiguous
     case providerInconsistent
+    case providerInactive
 }
 
 /// Resultado interno de `AccountRepository.fetchSnapshot` (006) — mapeado para `BlockedReason` por

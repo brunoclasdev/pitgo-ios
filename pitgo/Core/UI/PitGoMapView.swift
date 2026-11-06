@@ -50,6 +50,8 @@ struct PitGoMapView: UIViewRepresentable {
     /// cada atualização de `fitCoordinates` (que muda a cada novo fix de localização). O chamador
     /// incrementa para reenquadrar explicitamente (abertura inicial, botão "Centralizar").
     var fitTrigger: Int = 0
+    /// Tracking screens keep both participants in view as their coordinates change.
+    var followsFitCoordinates = false
     /// `026`: espaço reservado na borda inferior do mapa para o resumo compacto/expandido não
     /// cobrir os marcadores enquadrados — em pontos, já incluindo a margem de segurança.
     var fitBottomPadding: CGFloat = 60
@@ -90,7 +92,8 @@ struct PitGoMapView: UIViewRepresentable {
         context.coordinator.onRegionChanged = onRegionChanged
         context.coordinator.onUserGesture = onUserGesture
 
-        let existing = mapView.annotations ?? []
+        // Preserve MapLibre's live user-location annotation while updating application markers.
+        let existing = (mapView.annotations ?? []).filter { $0 is IdentifiedPointAnnotation }
         mapView.removeAnnotations(existing)
         let pointAnnotations = annotations.map { item -> IdentifiedPointAnnotation in
             let point = IdentifiedPointAnnotation(identifier: item.id, symbolName: item.symbolName)
@@ -102,9 +105,9 @@ struct PitGoMapView: UIViewRepresentable {
         mapView.addAnnotations(pointAnnotations)
 
         if let fitCoordinates, fitCoordinates.count >= 2 {
-            // `026` FR-014/SC-006: só reenquadra quando `fitTrigger` muda de fato — nunca a cada
-            // atualização de localização, para não sobrescrever um pan/zoom manual do cliente.
-            if context.coordinator.lastFitTrigger != fitTrigger {
+            // Search maps preserve manual framing; tracking maps explicitly follow moving points.
+            if context.coordinator.lastFitTrigger != fitTrigger || (followsFitCoordinates &&
+                (context.coordinator.fitCoordinatesChanged(fitCoordinates) || context.coordinator.lastFitBottomPadding != fitBottomPadding)) {
                 context.coordinator.requestFit(fitCoordinates, trigger: fitTrigger, padding: fitBottomPadding, in: mapView)
             }
         } else if let centerCoordinate {
@@ -186,7 +189,15 @@ struct PitGoMapView: UIViewRepresentable {
         /// `026`: último `fitTrigger` aplicado — só reenquadra quando ele muda (mesmo espírito de
         /// `lastCenteredCoordinate` para `centerCoordinate`, ver FR-014).
         var lastFitTrigger: Int?
+        private var lastFitCoordinates: [CLLocationCoordinate2D] = []
+        var lastFitBottomPadding: CGFloat?
         private var pendingFit: (coordinates: [CLLocationCoordinate2D], trigger: Int, padding: CGFloat)?
+
+        func fitCoordinatesChanged(_ coordinates: [CLLocationCoordinate2D]) -> Bool {
+            lastFitCoordinates.count != coordinates.count || !zip(lastFitCoordinates, coordinates).allSatisfy {
+                $0.latitude == $1.latitude && $0.longitude == $1.longitude
+            }
+        }
 
         func requestFit(_ coordinates: [CLLocationCoordinate2D], trigger: Int, padding: CGFloat, in map: MLNMapView) {
             pendingFit = (coordinates, trigger, padding)
@@ -199,6 +210,8 @@ struct PitGoMapView: UIViewRepresentable {
             pendingFit = nil
             PitGoMapView.fit(request.coordinates, in: map, bottomPadding: request.padding, animated: false)
             lastFitTrigger = request.trigger
+            lastFitCoordinates = request.coordinates
+            lastFitBottomPadding = request.padding
         }
         /// Reaplicado em `didFinishLoading` — cobre o caso de `routeLine` ter sido pedido antes de o
         /// estilo (assíncrono) terminar de carregar.

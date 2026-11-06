@@ -17,6 +17,8 @@ enum UnauthenticatedReason {
 }
 
 enum AppSessionState {
+    case passwordRecovery(valid: Bool)
+    case registrationRequired(AuthIdentity, AccountType)
     case initializing
     case verifying
     case unauthenticated(reason: UnauthenticatedReason?)
