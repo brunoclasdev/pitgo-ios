@@ -17,6 +17,16 @@
         }
       }
     },
+    "%@ · %@ · %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
     "%@ · %@/%@" : {
       "localizations" : {
         "pt-BR" : {
@@ -27,12 +37,32 @@
         }
       }
     },
+    "%@ · %lld avaliações" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld avaliações"
+          }
+        }
+      }
+    },
     "%@ %@" : {
       "localizations" : {
         "pt-BR" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
+    "%@ %@ · %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@ · %3$@"
           }
         }
       }
@@ -57,6 +87,19 @@
         }
       }
     },
+    "%@ → %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ → %2$@"
+          }
+        }
+      }
+    },
+    "%@ aceitou!" : {
+
+    },
     "%@, %@" : {
       "localizations" : {
         "pt-BR" : {
@@ -67,13 +110,57 @@
         }
       }
     },
+    "%@, %lld %@. Toque para ver os serviços." : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld %3$@. Toque para ver os serviços."
+          }
+        }
+      }
+    },
+    "%lld %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld %2$@"
+          }
+        }
+      }
+    },
+    "%lld avaliações recebidas" : {
+
+    },
+    "%lld de 5" : {
+
+    },
+    "%lld de 5 estrelas" : {
+
+    },
+    "%lld estrelas" : {
+
+    },
     "%lld min" : {
+
+    },
+    "%lld/500" : {
 
     },
     "🚗" : {
 
     },
+    "1 estrela" : {
+
+    },
     "A %@ de você" : {
+
+    },
+    "A câmera não está disponível neste dispositivo." : {
+
+    },
+    "A caminho da retirada." : {
 
     },
     "A caminho do cliente." : {
@@ -86,6 +173,9 @@
 
     },
     "A quilometragem não pode ser negativa." : {
+
+    },
+    "A retirada é definida pela sua localização atual." : {
 
     },
     "A senha deve ter no mínimo 8 caracteres." : {
@@ -113,6 +203,9 @@
         }
       }
     },
+    "ABC1D23" : {
+
+    },
     "Abrindo o acompanhamento…" : {
 
     },
@@ -130,6 +223,12 @@
     "Abrir Ajustes" : {
 
     },
+    "Abrir navegação" : {
+
+    },
+    "Abrir pagamento" : {
+
+    },
     "aceitou seu chamado." : {
 
     },
@@ -143,6 +242,15 @@
           }
         }
       }
+    },
+    "Adicionar foto (opcional)" : {
+
+    },
+    "Adicionar outro detalhe" : {
+
+    },
+    "Adicionar produto" : {
+
     },
     "Adicionar serviço" : {
       "extractionState" : "manual",
@@ -191,6 +299,12 @@
     "Agora saia desta conta e entre ou cadastre-se com a conta empresarial que deve receber a empresa (um e-mail diferente do seu e-mail de cliente)." : {
 
     },
+    "Aguardando aprovação das fotos pelo cliente." : {
+
+    },
+    "Aguardando confirmação do cliente." : {
+
+    },
     "Aguardando localização do prestador…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -202,10 +316,19 @@
         }
       }
     },
-    "Aguardando localização…" : {
+    "Aguardando o pagamento do cliente…" : {
 
     },
     "Aguardando prestador" : {
+
+    },
+    "Aguarde o QR Code e o código copia e cola para fazer o pagamento." : {
+
+    },
+    "Aguarde…" : {
+
+    },
+    "Ainda não há avaliações" : {
 
     },
     "Alguns dados não puderam ser aceitos. Revise o formulário." : {
@@ -218,6 +341,12 @@
           }
         }
       }
+    },
+    "Ambiente de desenvolvimento — pagamento simulado" : {
+
+    },
+    "Ampliar foto: %@" : {
+
     },
     "Ano de fabricação (opcional)" : {
       "extractionState" : "manual",
@@ -264,6 +393,15 @@
       }
     },
     "Aparência" : {
+
+    },
+    "Aprovada" : {
+
+    },
+    "Aprovar" : {
+
+    },
+    "Aprovar fotos" : {
 
     },
     "Área da empresa" : {
@@ -356,7 +494,22 @@
         }
       }
     },
+    "Ativo no catálogo" : {
+
+    },
     "Atribuição do mapa: %@" : {
+
+    },
+    "Atualizando percurso…" : {
+
+    },
+    "Atualizar" : {
+
+    },
+    "Atualizar situação" : {
+
+    },
+    "Atualizar situação da vistoria" : {
 
     },
     "Av. Paulista, 1500 · São Paulo" : {
@@ -369,6 +522,21 @@
           }
         }
       }
+    },
+    "Avaliação registrada" : {
+
+    },
+    "Avaliação registrada · definitiva" : {
+
+    },
+    "Avaliações e comentários" : {
+
+    },
+    "Avaliações recebidas" : {
+
+    },
+    "Avaliar atendimento" : {
+
     },
     "Bairro" : {
       "extractionState" : "manual",
@@ -414,6 +582,9 @@
         }
       }
     },
+    "Buscando endereço…" : {
+
+    },
     "Buscando num raio de %@." : {
 
     },
@@ -437,6 +608,9 @@
     "Buscar CEP" : {
 
     },
+    "Buscar guincheiros" : {
+
+    },
     "Buscar nesta área" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -454,6 +628,9 @@
     "Cadastrar cartão" : {
 
     },
+    "Cadastrar como prestador" : {
+
+    },
     "Cadastrar empresa" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -465,6 +642,9 @@
         }
       }
     },
+    "Cadastrar guincho" : {
+
+    },
     "Cadastrar veículo" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -475,6 +655,12 @@
           }
         }
       }
+    },
+    "Cadastre cada veículo usado no atendimento e envie seu documento. Clientes não precisam enviar documentos de veículos." : {
+
+    },
+    "Cadastro %@" : {
+
     },
     "Cadastro concluído!" : {
       "extractionState" : "manual",
@@ -501,6 +687,12 @@
     "Cadastro de cartão indisponível no momento." : {
 
     },
+    "Cadastro de prestador" : {
+
+    },
+    "Calculando valor…" : {
+
+    },
     "Câmbio (opcional)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -511,6 +703,9 @@
           }
         }
       }
+    },
+    "Câmera indisponível" : {
+
     },
     "Cancelar" : {
       "extractionState" : "manual",
@@ -532,6 +727,9 @@
     "Cancelar chamada" : {
 
     },
+    "Cancelar edição" : {
+
+    },
     "Cancelar migração" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -549,6 +747,12 @@
     "Cancelar solicitação" : {
 
     },
+    "Carregando avaliação…" : {
+
+    },
+    "Carregando avaliações…" : {
+
+    },
     "Carregando categorias…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -559,6 +763,9 @@
           }
         }
       }
+    },
+    "Carregando foto…" : {
+
     },
     "Carregando serviços…" : {
       "extractionState" : "manual",
@@ -571,6 +778,9 @@
         }
       }
     },
+    "Carregando vistoria…" : {
+
+    },
     "Carregando…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -581,6 +791,18 @@
           }
         }
       }
+    },
+    "Carregar cadastro" : {
+
+    },
+    "Carregar mais" : {
+
+    },
+    "Carregar próximas fotos" : {
+
+    },
+    "Carregar versões anteriores" : {
+
     },
     "Carro não liga" : {
       "extractionState" : "manual",
@@ -593,7 +815,20 @@
         }
       }
     },
+    "Cartão %@ •••• %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cartão %1$@ •••• %2$@"
+          }
+        }
+      }
+    },
     "Cartões salvos" : {
+
+    },
+    "Catálogo de lojas" : {
 
     },
     "Categoria" : {
@@ -606,6 +841,21 @@
           }
         }
       }
+    },
+    "Categoria do veículo" : {
+
+    },
+    "Categoria para transporte" : {
+
+    },
+    "Categoria principal" : {
+
+    },
+    "Centralizar mapa no cliente e no PitTec" : {
+
+    },
+    "Centralizar percurso do guincho" : {
+
     },
     "CEP" : {
       "extractionState" : "manual",
@@ -622,6 +872,9 @@
 
     },
     "CEP não encontrado. Verifique o número informado." : {
+
+    },
+    "Cerca de %lld min" : {
 
     },
     "Chamada PitTec" : {
@@ -652,6 +905,9 @@
         }
       }
     },
+    "Chegou à retirada." : {
+
+    },
     "Cidade" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -674,6 +930,19 @@
         }
       }
     },
+    "Código do país" : {
+
+    },
+    "Código do país: %@, %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Código do país: %1$@, %2$@"
+          }
+        }
+      }
+    },
     "Combustível (opcional)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -684,6 +953,24 @@
           }
         }
       }
+    },
+    "Comentário opcional" : {
+
+    },
+    "Comentário sobre o atendimento, até 500 caracteres" : {
+
+    },
+    "Comentários recebidos" : {
+
+    },
+    "Como foi o atendimento de %@?" : {
+
+    },
+    "Como sua empresa vai atuar?" : {
+
+    },
+    "Complemento" : {
+
     },
     "Complemento (opcional)" : {
       "extractionState" : "manual",
@@ -696,7 +983,16 @@
         }
       }
     },
+    "Completar categoria na Garagem" : {
+
+    },
+    "Completar categoria para guincho" : {
+
+    },
     "Concluído" : {
+
+    },
+    "Concluir" : {
 
     },
     "Concluir migração" : {
@@ -721,6 +1017,9 @@
         }
       }
     },
+    "Confira o enquadramento e a legibilidade antes de enviar." : {
+
+    },
     "Confirmando pagamento…" : {
 
     },
@@ -731,6 +1030,12 @@
 
     },
     "Confirmar cartão" : {
+
+    },
+    "Confirmar dados já salvos" : {
+
+    },
+    "Confirmar destino" : {
 
     },
     "Confirmar divergência de endereço?" : {
@@ -744,6 +1049,9 @@
         }
       }
     },
+    "Confirmar e enviar foto" : {
+
+    },
     "Confirmar endereço mesmo assim" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -754,6 +1062,9 @@
           }
         }
       }
+    },
+    "Confirmar este ponto" : {
+
     },
     "Confirmar pagamento" : {
 
@@ -816,6 +1127,9 @@
         }
       }
     },
+    "Contratar" : {
+
+    },
     "Coordenadas (opcional)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -833,6 +1147,9 @@
     "Copiar código Pix" : {
 
     },
+    "Cor" : {
+
+    },
     "Cor (opcional)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -843,6 +1160,12 @@
           }
         }
       }
+    },
+    "Correção: %@" : {
+
+    },
+    "Corrigir cadastro" : {
+
     },
     "Corrigir endereço" : {
       "extractionState" : "manual",
@@ -877,6 +1200,9 @@
         }
       }
     },
+    "Criando conta…" : {
+
+    },
     "Criar conta" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -910,7 +1236,16 @@
         }
       }
     },
+    "Crie sua conta" : {
+
+    },
     "CVV" : {
+
+    },
+    "Dados cadastrais" : {
+
+    },
+    "Dados complementares" : {
 
     },
     "Dados da corrida" : {
@@ -938,6 +1273,22 @@
         }
       }
     },
+    "Decidido por %@" : {
+
+    },
+    "Decisão: %@ em %@" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Decisão: %1$@ em %2$@"
+          }
+        }
+      }
+    },
+    "Depois, complete seus dados e envie seus documentos. O acesso aos serviços depende da aprovação da equipe PitGo." : {
+
+    },
     "Descartar" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -948,6 +1299,9 @@
           }
         }
       }
+    },
+    "Descartar a captura irrecuperável?" : {
+
     },
     "Descartar cadastro?" : {
       "extractionState" : "manual",
@@ -960,6 +1314,9 @@
         }
       }
     },
+    "Descartar captura perdida" : {
+
+    },
     "Descartar dados do veículo?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -970,6 +1327,18 @@
           }
         }
       }
+    },
+    "Descartar e liberar o ponto" : {
+
+    },
+    "Descartar envio pendente" : {
+
+    },
+    "Descreva a avaria ou detalhe (opcional)" : {
+
+    },
+    "Descreva o problema" : {
+
     },
     "Descreva o problema (opcional)" : {
       "extractionState" : "manual",
@@ -992,6 +1361,9 @@
           }
         }
       }
+    },
+    "Descrição" : {
+
     },
     "Descrição (opcional)" : {
       "extractionState" : "manual",
@@ -1016,6 +1388,12 @@
       }
     },
     "Desligado, você fica invisível para novos clientes — atendimentos já aceitos continuam normalmente." : {
+
+    },
+    "Destino: %@" : {
+
+    },
+    "Detalhes do atendimento" : {
 
     },
     "Digite o CVV do cartão para confirmar o pagamento." : {
@@ -1060,6 +1438,12 @@
         }
       }
     },
+    "Documento — %@" : {
+
+    },
+    "Documentos pessoais" : {
+
+    },
     "Duração (minutos)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1070,6 +1454,9 @@
           }
         }
       }
+    },
+    "Duração: %lld min" : {
+
     },
     "E-mail" : {
       "extractionState" : "manual",
@@ -1103,6 +1490,24 @@
           }
         }
       }
+    },
+    "Editar" : {
+
+    },
+    "Editar cadastro" : {
+
+    },
+    "Editar categoria de transporte" : {
+
+    },
+    "Editar guincho" : {
+
+    },
+    "Editar trajeto" : {
+
+    },
+    "Editar veículo" : {
+
     },
     "Encerrando…" : {
       "extractionState" : "manual",
@@ -1149,6 +1554,9 @@
       }
     },
     "Endereço confirmado (%lld m do dispositivo)" : {
+
+    },
+    "Endereço de destino" : {
 
     },
     "Endereço fixo" : {
@@ -1226,6 +1634,36 @@
         }
       }
     },
+    "Enviar" : {
+
+    },
+    "Enviar avaliação" : {
+
+    },
+    "Enviar cadastro para análise" : {
+
+    },
+    "Enviar link de recuperação" : {
+
+    },
+    "Escaneie o QR Code ou copie o código para pagar no aplicativo do seu banco." : {
+
+    },
+    "Escolha a modalidade para abrir o cadastro adequado." : {
+
+    },
+    "Escolha o aplicativo de navegação" : {
+
+    },
+    "Escolher país do telefone" : {
+
+    },
+    "Esqueci minha senha" : {
+
+    },
+    "Esta avaliação é definitiva e não pode ser editada." : {
+
+    },
     "Esta placa não está disponível." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1273,6 +1711,9 @@
         }
       }
     },
+    "Este atendimento não pode receber uma avaliação." : {
+
+    },
     "Este campo é obrigatório." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1295,7 +1736,13 @@
         }
       }
     },
+    "Este dado já está cadastrado." : {
+
+    },
     "Este identificador já está cadastrado." : {
+
+    },
+    "Este pagamento precisa de atendimento do suporte." : {
 
     },
     "Este Renavam não está disponível." : {
@@ -1353,6 +1800,27 @@
         }
       }
     },
+    "Exibindo sua última posição. Toque em Recentralizar para atualizar." : {
+
+    },
+    "Expandir resumo do atendimento" : {
+
+    },
+    "Expirar" : {
+
+    },
+    "Falta completar" : {
+
+    },
+    "Fazer vistoria do veículo" : {
+
+    },
+    "Fechar" : {
+
+    },
+    "Fechar avaliação" : {
+
+    },
     "Fixo" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1381,6 +1849,24 @@
     "Formas de pagamento" : {
 
     },
+    "Foto do documento" : {
+
+    },
+    "Foto recebida" : {
+
+    },
+    "Foto salva" : {
+
+    },
+    "Foto selecionada" : {
+
+    },
+    "Fotografar" : {
+
+    },
+    "Fotografar %@" : {
+
+    },
     "Garagem" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1391,6 +1877,12 @@
           }
         }
       }
+    },
+    "Gerando Pix…" : {
+
+    },
+    "Gerenciar produtos da loja" : {
+
     },
     "Gratuito" : {
       "extractionState" : "manual",
@@ -1406,6 +1898,18 @@
     "Guincho" : {
 
     },
+    "Há uma foto com envio pendente. Conclua o envio antes de continuar." : {
+
+    },
+    "Histórico" : {
+
+    },
+    "Histórico de atendimentos" : {
+
+    },
+    "Histórico de pagamentos" : {
+
+    },
     "ID do atendimento" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1417,7 +1921,16 @@
         }
       }
     },
+    "Inativo" : {
+
+    },
     "Indisponível" : {
+
+    },
+    "Informar problema" : {
+
+    },
+    "Informe a categoria para solicitar guincho, incluindo micro-ônibus." : {
 
     },
     "Informe a marca do veículo." : {
@@ -1485,6 +1998,9 @@
         }
       }
     },
+    "Instale Waze ou Google Maps para abrir a navegação." : {
+
+    },
     "Isso personaliza a Home com os dados do seu carro. Você pode fazer isso depois pela Garagem." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1506,6 +2022,9 @@
           }
         }
       }
+    },
+    "Link inválido ou expirado. Solicite outro link para continuar." : {
+
     },
     "Lista" : {
       "extractionState" : "manual",
@@ -1579,6 +2098,12 @@
     "Localizando serviço…" : {
 
     },
+    "Loja" : {
+
+    },
+    "Lojas" : {
+
+    },
     "Longitude" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1623,6 +2148,22 @@
         }
       }
     },
+    "Média %@ de 5, %lld avaliações" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Média %1$@ de 5, %2$lld avaliações"
+          }
+        }
+      }
+    },
+    "Meus guinchos" : {
+
+    },
+    "Meus guinchos · cadastrar e editar porte" : {
+
+    },
     "Migração iniciada — válida até %@." : {
 
     },
@@ -1648,6 +2189,9 @@
         }
       }
     },
+    "Minha localização" : {
+
+    },
     "Modalidade" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1658,6 +2202,12 @@
           }
         }
       }
+    },
+    "Modalidade da conta" : {
+
+    },
+    "Modalidade: %@" : {
+
     },
     "Modalidade: fixa" : {
       "extractionState" : "manual",
@@ -1713,6 +2263,9 @@
           }
         }
       }
+    },
+    "Motivo da correção: %@" : {
+
     },
     "Motivo do cancelamento" : {
 
@@ -1775,6 +2328,21 @@
         }
       }
     },
+    "Não foi possível abrir a navegação" : {
+
+    },
+    "Não foi possível atualizar. Tente novamente." : {
+
+    },
+    "Não foi possível buscar o endereço agora." : {
+
+    },
+    "Não foi possível carregar a avaliação." : {
+
+    },
+    "Não foi possível carregar a média. Tentar novamente" : {
+
+    },
     "Não foi possível carregar as categorias." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1797,7 +2365,16 @@
         }
       }
     },
+    "Não foi possível carregar mais. Tentar novamente" : {
+
+    },
+    "Não foi possível carregar o histórico." : {
+
+    },
     "Não foi possível carregar o valor configurado agora." : {
+
+    },
+    "Não foi possível carregar os comentários. Tentar novamente" : {
 
     },
     "Não foi possível carregar os dados da empresa." : {
@@ -1949,6 +2526,9 @@
         }
       }
     },
+    "Não foi possível confirmar o envio. Sua avaliação continua aqui; tente novamente." : {
+
+    },
     "Não foi possível entrar. Tente novamente." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1996,6 +2576,9 @@
         }
       }
     },
+    "Não foi possível obter sua localização automaticamente." : {
+
+    },
     "Não foi possível salvar o veículo. Tente novamente." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2032,7 +2615,19 @@
         }
       }
     },
+    "Nenhum atendimento no histórico." : {
+
+    },
     "Nenhum cartão cadastrado." : {
+
+    },
+    "Nenhum endereço encontrado." : {
+
+    },
+    "Nenhum guincheiro disponível no momento." : {
+
+    },
+    "Nenhum pagamento encontrado." : {
 
     },
     "Nenhum provider encontrado nesta área." : {
@@ -2107,6 +2702,9 @@
     "Nenhuma solicitação no momento." : {
 
     },
+    "Nome" : {
+
+    },
     "Nome completo" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2129,6 +2727,9 @@
         }
       }
     },
+    "Nome do produto" : {
+
+    },
     "Nome impresso no cartão" : {
 
     },
@@ -2138,7 +2739,13 @@
     "Nova chamada PitTec" : {
 
     },
+    "Nova senha" : {
+
+    },
     "Nova solicitação" : {
+
+    },
+    "Nova solicitação de guincho" : {
 
     },
     "Número" : {
@@ -2155,13 +2762,37 @@
     "Número do cartão" : {
 
     },
+    "Número não encontrado nesse endereço." : {
+
+    },
+    "O aplicativo escolhido receberá somente o destino do atendimento." : {
+
+    },
     "O cadastro de veículos está temporariamente indisponível. Tente novamente mais tarde." : {
 
     },
     "O cadastro é totalmente opcional — Pix continua disponível sem ele." : {
 
     },
+    "O cliente informou um problema — em análise pelo suporte." : {
+
+    },
     "O desafio de migração expirou ou não é mais válido. Reinicie a migração a partir da conta de cliente." : {
+
+    },
+    "O endereço informado será validado automaticamente ao concluir o cadastro." : {
+
+    },
+    "O guincheiro chegou à retirada." : {
+
+    },
+    "O guincheiro está a caminho." : {
+
+    },
+    "O guincheiro informou que concluiu o atendimento." : {
+
+    },
+    "O guincheiro recusou. Escolha outro prestador. O acompanhamento financeiro permanece no histórico." : {
 
     },
     "O PitGo resolve." : {
@@ -2181,6 +2812,12 @@
     "O PitTec está a caminho." : {
 
     },
+    "O que não deu certo?" : {
+
+    },
+    "O que precisa ser corrigido?" : {
+
+    },
     "O que seu carro precisa hoje?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2193,6 +2830,9 @@
       }
     },
     "O Renavam deve conter 11 dígitos." : {
+
+    },
+    "O uso como %@ depende da aprovação da equipe PitGo." : {
 
     },
     "Obtendo localização…" : {
@@ -2220,6 +2860,9 @@
         }
       }
     },
+    "OK" : {
+
+    },
     "Olá," : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2231,7 +2874,13 @@
         }
       }
     },
+    "Opcional · não registrado" : {
+
+    },
     "Orçamento confirmado — falta só pagar." : {
+
+    },
+    "Os arquivos desta captura não podem ser restaurados com segurança. O ponto ficará disponível para uma nova foto." : {
 
     },
     "Outro dispositivo está publicando a localização deste atendimento." : {
@@ -2265,6 +2914,12 @@
     "Pagar com Pix" : {
 
     },
+    "Pague com Pix" : {
+
+    },
+    "País ou código" : {
+
+    },
     "País: Brasil" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2275,6 +2930,9 @@
           }
         }
       }
+    },
+    "Para onde o veículo deve ir?" : {
+
     },
     "Parar" : {
       "extractionState" : "manual",
@@ -2287,6 +2945,12 @@
         }
       }
     },
+    "Pendências da análise" : {
+
+    },
+    "Pendente" : {
+
+    },
     "Pequenos reparos" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2297,6 +2961,9 @@
           }
         }
       }
+    },
+    "Percurso viário · %lld km" : {
+
     },
     "Perfil" : {
       "extractionState" : "manual",
@@ -2331,6 +2998,9 @@
         }
       }
     },
+    "Pessoa física (CPF)" : {
+
+    },
     "Pessoa jurídica" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2341,6 +3011,9 @@
           }
         }
       }
+    },
+    "Pessoa jurídica (CNPJ)" : {
+
     },
     "PGO-2A20" : {
       "extractionState" : "manual",
@@ -2381,6 +3054,9 @@
         }
       }
     },
+    "Pix" : {
+
+    },
     "PIX" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2391,6 +3067,9 @@
           }
         }
       }
+    },
+    "Placa" : {
+
     },
     "Placa (opcional)" : {
       "extractionState" : "manual",
@@ -2417,7 +3096,10 @@
     "Por que você está cancelando?" : {
 
     },
-    "Posição do guincho indisponível no momento." : {
+    "Posição atualizada às %@" : {
+
+    },
+    "Posicione o mapa sobre o ponto de retirada e confirme." : {
 
     },
     "Preço (R$)" : {
@@ -2434,6 +3116,12 @@
     "Preço garantido: %@" : {
 
     },
+    "Preencher dados da empresa e serviços" : {
+
+    },
+    "Preencher endereço" : {
+
+    },
     "Preparando migração…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2444,6 +3132,9 @@
           }
         }
       }
+    },
+    "Preparar nova versão" : {
+
     },
     "Prestador" : {
       "extractionState" : "manual",
@@ -2471,6 +3162,9 @@
 
     },
     "Procurando PitTec" : {
+
+    },
+    "Produto" : {
 
     },
     "Profissionais avaliados e aprovados." : {
@@ -2548,7 +3242,37 @@
         }
       }
     },
+    "Recarregar cadastro" : {
+
+    },
+    "Recarregar categorias" : {
+
+    },
+    "Recebemos seus dados e documentos. Aguarde a análise. Você pode atualizar a situação para consultar o resultado." : {
+
+    },
+    "Recentralizar" : {
+
+    },
+    "Recolher resumo do atendimento" : {
+
+    },
+    "Reconectar localização" : {
+
+    },
+    "Recuperar senha" : {
+
+    },
     "Recusar" : {
+
+    },
+    "Refazer" : {
+
+    },
+    "Rejeitar" : {
+
+    },
+    "Remover" : {
 
     },
     "Remover cartão" : {
@@ -2576,6 +3300,15 @@
         }
       }
     },
+    "Retirada: %@" : {
+
+    },
+    "Revisar foto" : {
+
+    },
+    "Revisar vistoria" : {
+
+    },
     "Rua" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2598,10 +3331,22 @@
         }
       }
     },
+    "Salva em %@" : {
+
+    },
+    "Salvar" : {
+
+    },
+    "Salvar alterações" : {
+
+    },
     "Salvar cartão" : {
 
     },
     "Salvar endereço" : {
+
+    },
+    "Salvar nova senha" : {
 
     },
     "Salvar veículo" : {
@@ -2615,6 +3360,24 @@
         }
       }
     },
+    "Selecionado" : {
+
+    },
+    "Selecionado para atendimento" : {
+
+    },
+    "Selecionar" : {
+
+    },
+    "Selecionar categoria" : {
+
+    },
+    "Selecionar marca" : {
+
+    },
+    "Selecionar porte" : {
+
+    },
     "Selecione" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2625,6 +3388,18 @@
           }
         }
       }
+    },
+    "Selecione a marca." : {
+
+    },
+    "Selecione o porte" : {
+
+    },
+    "Selecione o tipo/porte do guincho." : {
+
+    },
+    "Sem comentário" : {
+
     },
     "Sem conexão com a internet." : {
       "extractionState" : "manual",
@@ -2669,6 +3444,9 @@
           }
         }
       }
+    },
+    "Senha (mínimo de 8 caracteres)" : {
+
     },
     "Serviço" : {
       "extractionState" : "manual",
@@ -2736,6 +3514,15 @@
         }
       }
     },
+    "Seu caso está em análise pelo suporte." : {
+
+    },
+    "Simular falha" : {
+
+    },
+    "Sobrenome" : {
+
+    },
     "Solicitação" : {
 
     },
@@ -2754,6 +3541,9 @@
       }
     },
     "SOLICITAR ATENDIMENTO" : {
+
+    },
+    "Solicitar correção" : {
 
     },
     "SOLICITAR PITTECH" : {
@@ -2825,6 +3615,15 @@
         }
       }
     },
+    "Sua localização" : {
+
+    },
+    "Sua remuneração: %@" : {
+
+    },
+    "Sua reputação" : {
+
+    },
     "Sua sessão expirou. Entre novamente." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2846,6 +3645,15 @@
           }
         }
       }
+    },
+    "Substituir %@" : {
+
+    },
+    "Tarifa e duração configuradas pela PitGo." : {
+
+    },
+    "Tarifa e duração definidas pela PitGo" : {
+
     },
     "Técnicos verificados" : {
       "extractionState" : "manual",
@@ -2869,6 +3677,21 @@
         }
       }
     },
+    "Tempo restante para responder" : {
+
+    },
+    "Tentar carregar categorias" : {
+
+    },
+    "Tentar carregar novamente" : {
+
+    },
+    "Tentar carregar portes" : {
+
+    },
+    "Tentar enviar novamente" : {
+
+    },
     "Tentar novamente" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2880,6 +3703,12 @@
         }
       }
     },
+    "Tentar salvar novamente" : {
+
+    },
+    "Tipo de empresa" : {
+
+    },
     "Tipo de pessoa" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2890,6 +3719,15 @@
           }
         }
       }
+    },
+    "Tipo/porte" : {
+
+    },
+    "Tipo/porte do guincho" : {
+
+    },
+    "Toque num ícone no mapa para ver o valor." : {
+
     },
     "Toque para cadastrar ou selecionar um veículo" : {
       "extractionState" : "manual",
@@ -2916,6 +3754,9 @@
         }
       }
     },
+    "Transporte em andamento." : {
+
+    },
     "Troca de óleo" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2926,6 +3767,12 @@
           }
         }
       }
+    },
+    "Trocar a categoria principal descarta os serviços já selecionados. Continuar?" : {
+
+    },
+    "Trocar categoria" : {
+
     },
     "Trocar de conta" : {
       "extractionState" : "manual",
@@ -2952,6 +3799,12 @@
         }
       }
     },
+    "Tudo pronto para iniciar o trajeto." : {
+
+    },
+    "UF" : {
+
+    },
     "Um dos serviços já foi adicionado. Revise as ofertas." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2974,10 +3827,16 @@
         }
       }
     },
-    "Validade" : {
+    "Usar como cliente" : {
 
     },
-    "Valor definido pela plataforma — sem cadastro de preço." : {
+    "Usar como prestador" : {
+
+    },
+    "Usar este guincho" : {
+
+    },
+    "Validade" : {
 
     },
     "Valor do atendimento" : {
@@ -3011,6 +3870,15 @@
     "Valores" : {
 
     },
+    "Valores e duração dos atendimentos são definidos pela PitGo." : {
+
+    },
+    "Veículo" : {
+
+    },
+    "Veículo de atendimento" : {
+
+    },
     "Veículo selecionado" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3022,6 +3890,24 @@
         }
       }
     },
+    "Veículos de atendimento" : {
+
+    },
+    "Veículos e portes de atendimento" : {
+
+    },
+    "Ver %@" : {
+
+    },
+    "Ver vistoria" : {
+
+    },
+    "Ver vistoria do veículo" : {
+
+    },
+    "Verificando avaliação…" : {
+
+    },
     "Verificando endereço…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3032,6 +3918,9 @@
           }
         }
       }
+    },
+    "Verificando…" : {
+
     },
     "Verificar endereço" : {
       "extractionState" : "manual",
@@ -3077,6 +3966,24 @@
         }
       }
     },
+    "Versão %lld" : {
+
+    },
+    "Vistoria aprovada pelo cliente." : {
+
+    },
+    "Vistoria aprovada. Tudo pronto para iniciar o trajeto." : {
+
+    },
+    "Vistoria do veículo" : {
+
+    },
+    "Vistoria para aprovação" : {
+
+    },
+    "Você ainda não recebeu comentários." : {
+
+    },
     "Você chegou ao local." : {
 
     },
@@ -3104,6 +4011,9 @@
           }
         }
       }
+    },
+    "Voltar para entrar" : {
+
     }
   },
   "version" : "1.0"
